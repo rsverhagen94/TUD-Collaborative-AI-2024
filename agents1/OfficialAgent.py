@@ -162,26 +162,26 @@ class BaselineAgent(ArtificialBrain):
                 self._goal_loc = None
                 self._rescue = None
                 self._moving = True
-                remainingZones = []
-                remainingVics = []
+                remaining_zones = []
+                remaining_vics = []
                 remaining = {}
                 # Identification of the location of the drop zones
                 zones = self._get_drop_zones(state)
                 # Identification of which victims still need to be rescued and on which location they should be dropped
                 for info in zones:
                     if str(info['img_name'])[8:-4] not in self._collected_victims:
-                        remainingZones.append(info)
-                        remainingVics.append(str(info['img_name'])[8:-4])
+                        remaining_zones.append(info)
+                        remaining_vics.append(str(info['img_name'])[8:-4])
                         remaining[str(info['img_name'])[8:-4]] = info['location']
-                if remainingZones:
-                    self._remainingZones = remainingZones
+                if remaining_zones:
+                    self._remainingZones = remaining_zones
                     self._remaining = remaining
                 # Remain idle if there are no victims left to rescue
-                if not remainingZones:
+                if not remaining_zones:
                     return None, {}
 
-                # Check which victims can be rescued next because human or agent already found them             
-                for vic in remainingVics:
+                # Check which victims can be rescued next because human or agent already found them
+                for vic in remaining_vics:
                     # Define a previously found victim as target victim because all areas have been searched
                     if vic in self._found_victims and vic in self._todo and len(self._searched_rooms) == 0:
                         self._goal_vic = vic
@@ -225,13 +225,13 @@ class BaselineAgent(ArtificialBrain):
             if Phase.PICK_UNSEARCHED_ROOM == self._phase:
                 agent_location = state[self.agent_id]['location']
                 # Identify which areas are not explored yet
-                unsearchedRooms = [room['room_name'] for room in state.values()
+                unsearched_rooms = [room['room_name'] for room in state.values()
                                    if 'class_inheritance' in room
                                    and 'Door' in room['class_inheritance']
                                    and room['room_name'] not in self._searched_rooms
                                    and room['room_name'] not in self._to_search]
                 # If all areas have been searched but the task is not finished, start searching areas again
-                if self._remainingZones and len(unsearchedRooms) == 0:
+                if self._remainingZones and len(unsearched_rooms) == 0:
                     self._to_search = []
                     self._searched_rooms = []
                     self._send_messages = []
@@ -244,10 +244,10 @@ class BaselineAgent(ArtificialBrain):
                     # Identify the closest door when the agent did not search any areas yet
                     if self._current_door == None:
                         # Find all area entrance locations
-                        self._door = state.get_room_doors(self._getClosestRoom(state, unsearchedRooms, agent_location))[
+                        self._door = state.get_room_doors(self._getClosestRoom(state, unsearched_rooms, agent_location))[
                             0]
                         self._doormat = \
-                            state.get_room(self._getClosestRoom(state, unsearchedRooms, agent_location))[-1]['doormat']
+                            state.get_room(self._getClosestRoom(state, unsearched_rooms, agent_location))[-1]['doormat']
                         # Workaround for one area because of some bug
                         if self._door['room_name'] == 'area 1':
                             self._doormat = (3, 5)
@@ -256,9 +256,9 @@ class BaselineAgent(ArtificialBrain):
                     # Identify the closest door when the agent just searched another area
                     if self._current_door != None:
                         self._door = \
-                            state.get_room_doors(self._getClosestRoom(state, unsearchedRooms, self._current_door))[0]
+                            state.get_room_doors(self._getClosestRoom(state, unsearched_rooms, self._current_door))[0]
                         self._doormat = \
-                            state.get_room(self._getClosestRoom(state, unsearchedRooms, self._current_door))[-1][
+                            state.get_room(self._getClosestRoom(state, unsearched_rooms, self._current_door))[-1][
                                 'doormat']
                         if self._door['room_name'] == 'area 1':
                             self._doormat = (3, 5)
