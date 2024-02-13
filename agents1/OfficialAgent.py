@@ -141,7 +141,7 @@ class BaselineAgent(ArtificialBrain):
         # Send the hidden score message for displaying and logging the score during the task, DO NOT REMOVE THIS
         self._send_message('Our score is ' + str(state['rescuebot']['score']) + '.', 'RescueBot')
 
-        # Ongoing loop untill the task is terminated, using different phases for defining the agent's behavior
+        # Ongoing loop until the task is terminated, using different phases for defining the agent's behavior
         while True:
             if Phase.INTRO == self._phase:
                 # Send introduction message
@@ -265,45 +265,66 @@ class BaselineAgent(ArtificialBrain):
                         self._phase = Phase.PLAN_PATH_TO_ROOM
 
             if Phase.PLAN_PATH_TO_ROOM == self._phase:
+                # Reset the navigator for a new path planning
                 self._navigator.reset_full()
-                # Switch to a different area when the human found a victim
-                if self._goal_vic and self._goal_vic in self._found_victims and 'location' not in \
-                        self._found_victim_logs[
-                            self._goal_vic].keys():
-                    self._door = state.get_room_doors(self._found_victim_logs[self._goal_vic]['room'])[0]
-                    self._doormat = state.get_room(self._found_victim_logs[self._goal_vic]['room'])[-1]['doormat']
+
+                # Check if there is a goal victim, and it has been found, but its location is not known
+                if self._goal_vic \
+                        and self._goal_vic in self._found_victims \
+                        and 'location' not in self._found_victim_logs[self._goal_vic].keys():
+                    # Retrieve the victim's room location and related information
+                    victim_location = self._found_victim_logs[self._goal_vic]['room']
+                    self._door = state.get_room_doors(victim_location)[0]
+                    self._doormat = state.get_room(victim_location)[-1]['doormat']
+
+                    # Handle special case for 'area 1'
                     if self._door['room_name'] == 'area 1':
                         self._doormat = (3, 5)
+
+                    # Set the door location based on the doormat
                     doorLoc = self._doormat
-                # Otherwise plan the route to the previously identified area to search
+
+                # If the goal victim's location is known, plan the route to the identified area
                 else:
                     if self._door['room_name'] == 'area 1':
                         self._doormat = (3, 5)
                     doorLoc = self._doormat
+
+                # Add the door location as a waypoint for navigation
                 self._navigator.add_waypoints([doorLoc])
                 # Follow the route to the next area to search
                 self._phase = Phase.FOLLOW_PATH_TO_ROOM
 
             if Phase.FOLLOW_PATH_TO_ROOM == self._phase:
-                # Find the next victim to rescue if the previously identified target victim was rescued by the human
+                # Check if the previously identified target victim was rescued by the human
                 if self._goal_vic and self._goal_vic in self._collected_victims:
+                    # Reset current door and switch to finding the next goal
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                # Identify which area to move to because the human found the previously identified target victim
-                if self._goal_vic and self._goal_vic in self._found_victims and self._door['room_name'] != \
-                        self._found_victim_logs[self._goal_vic]['room']:
+
+                # Check if the human found the previously identified target victim in a different room
+                if self._goal_vic \
+                        and self._goal_vic in self._found_victims \
+                        and self._door['room_name'] != self._found_victim_logs[self._goal_vic]['room']:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                # Identify the next area to search if the human already searched the previously identified area
+
+                # Check if the human already searched the previously identified area without finding the target victim
                 if self._door['room_name'] in self._searched_rooms and self._goal_vic not in self._found_victims:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                # Otherwise move to the next area to search
+
+                # Move to the next area to search
                 else:
+                    # Update the state tracker with the current state
                     self._state_tracker.update(state)
-                    # Explain why the agent is moving to the specific area, either because it containts the current target victim or because it is the closest unsearched area
-                    if self._goal_vic in self._found_victims and str(self._door['room_name']) == \
-                            self._found_victim_logs[self._goal_vic]['room'] and not self._remove:
+
+                    # Explain why the agent is moving to the specific area, either:
+                    # [-] it contains the current target victim
+                    # [-] it is the closest un-searched area
+                    if self._goal_vic in self._found_victims \
+                            and str(self._door['room_name']) == self._found_victim_logs[self._goal_vic]['room'] \
+                            and not self._remove:
                         if self._condition == 'weak':
                             self._send_message('Moving to ' + str(
                                 self._door['room_name']) + ' to pick up ' + self._goal_vic + ' together with you.',
@@ -312,14 +333,19 @@ class BaselineAgent(ArtificialBrain):
                             self._send_message(
                                 'Moving to ' + str(self._door['room_name']) + ' to pick up ' + self._goal_vic + '.',
                                 'RescueBot')
+
                     if self._goal_vic not in self._found_victims and not self._remove or not self._goal_vic and not self._remove:
                         self._send_message(
                             'Moving to ' + str(self._door['room_name']) + ' because it is the closest unsearched area.',
                             'RescueBot')
+
+                    # Set the current door based on the current location
                     self._current_door = self._door['location']
+
                     # Retrieve move actions to execute
                     action = self._navigator.get_move_action(self._state_tracker)
-                    if action != None:
+                    # Check for obstacles blocking the path to the area and handle them if needed
+                    if action is not None:
                         # Remove obstacles blocking the path to the area 
                         for info in state.values():
                             if 'class_inheritance' in info and 'ObstacleObject' in info[
@@ -328,9 +354,9 @@ class BaselineAgent(ArtificialBrain):
                                                                                                                 (9, 19),
                                                                                                                 (21,
                                                                                                                  19)]:
-                                self._send_message('Reaching ' + str(self._door[
-                                                                        'room_name']) + ' will take a bit longer because I found stones blocking my path.',
-                                                  'RescueBot')
+                                self._send_message('Reaching ' + str(self._door['room_name'])
+                                                   + ' will take a bit longer because I found stones blocking my path.',
+                                                   'RescueBot')
                                 return RemoveObject.__name__, {'object_id': info['obj_id']}
                         return action, {}
                     # Identify and remove obstacles if they are blocking the entrance of the area
@@ -475,39 +501,50 @@ class BaselineAgent(ArtificialBrain):
 
             if Phase.ENTER_ROOM == self._phase:
                 self._answered = False
-                # If the target victim is rescued by the human, identify the next victim to rescue
+
+                # Check if the target victim has been rescued by the human, and switch to finding the next goal
                 if self._goal_vic in self._collected_victims:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                # If the target victim is found in a different area, start moving there
-                if self._goal_vic in self._found_victims and self._door['room_name'] != \
-                        self._found_victim_logs[self._goal_vic]['room']:
+
+                # Check if the target victim is found in a different area, and start moving there
+                if self._goal_vic in self._found_victims \
+                        and self._door['room_name'] != self._found_victim_logs[self._goal_vic]['room']:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                # If the human searched the same area, plan searching another area instead
+
+                # Check if area already searched without finding the target victim, and plan to search another area
                 if self._door['room_name'] in self._searched_rooms and self._goal_vic not in self._found_victims:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                # Otherwise, enter the area and plan to search it
+
+                # Enter the area and plan to search it
                 else:
                     self._state_tracker.update(state)
+
                     action = self._navigator.get_move_action(self._state_tracker)
-                    if action != None:
+                    # If there is a valid action, return it; otherwise, plan to search the room
+                    if action is not None:
                         return action, {}
                     self._phase = Phase.PLAN_ROOM_SEARCH_PATH
 
             if Phase.PLAN_ROOM_SEARCH_PATH == self._phase:
+                # Extract the numeric location from the room name and set it as the agent's location
                 self._agent_loc = int(self._door['room_name'].split()[-1])
-                # Store the locations of all area tiles
-                roomTiles = [info['location'] for info in state.values()
+
+                # Store the locations of all area tiles in the current room
+                room_tiles = [info['location'] for info in state.values()
                              if 'class_inheritance' in info
                              and 'AreaTile' in info['class_inheritance']
                              and 'room_name' in info
                              and info['room_name'] == self._door['room_name']]
-                self._roomtiles = roomTiles
+                self._roomtiles = room_tiles
+
                 # Make the plan for searching the area
                 self._navigator.reset_full()
-                self._navigator.add_waypoints(self._efficientSearch(roomTiles))
+                self._navigator.add_waypoints(self._efficientSearch(room_tiles))
+
+                # Initialize variables for storing room victims and switch to following the room search path
                 self._room_vics = []
                 self._phase = Phase.FOLLOW_ROOM_SEARCH_PATH
 
@@ -663,22 +700,25 @@ class BaselineAgent(ArtificialBrain):
                 # Start searching for other victims if the human already rescued the target victim
                 if self._goal_vic and self._goal_vic in self._collected_victims:
                     self._phase = Phase.FIND_NEXT_GOAL
-                # Otherwise, move towards the location of the found victim
+
+                # Move towards the location of the found victim
                 else:
                     self._state_tracker.update(state)
+
                     action = self._navigator.get_move_action(self._state_tracker)
-                    if action != None:
+                    # If there is a valid action, return it; otherwise, switch to taking the victim
+                    if action is not None:
                         return action, {}
                     self._phase = Phase.TAKE_VICTIM
 
             if Phase.TAKE_VICTIM == self._phase:
                 # Store all area tiles in a list
-                roomTiles = [info['location'] for info in state.values()
+                room_tiles = [info['location'] for info in state.values()
                              if 'class_inheritance' in info
                              and 'AreaTile' in info['class_inheritance']
                              and 'room_name' in info
                              and info['room_name'] == self._found_victim_logs[self._goal_vic]['room']]
-                self._roomtiles = roomTiles
+                self._roomtiles = room_tiles
                 objects = []
                 # When the victim has to be carried by human and agent together, check whether human has arrived at the victim's location
                 for info in state.values():
@@ -753,7 +793,7 @@ class BaselineAgent(ArtificialBrain):
     def _get_drop_zones(self, state):
         '''
         @return list of drop zones (their full dict), in order (the first one is the
-        the place that requires the first drop)
+        place that requires the first drop)
         '''
         places = state[{'is_goal_block': True}]
         places.sort(key=lambda info: info['location'][1])
