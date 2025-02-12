@@ -7,7 +7,6 @@ import pathlib
 def output_logger(fld):
     recent_dir = max(glob.glob(os.path.join(fld, '*/')), key=os.path.getmtime)
     recent_dir = max(glob.glob(os.path.join(recent_dir, '*/')), key=os.path.getmtime)
-    print(f"This is recent dir {recent_dir}")
     action_files = glob.glob(os.path.join(recent_dir, 'world_1/action*'))
     if action_files:
         action_file = action_files[0]
