@@ -312,12 +312,13 @@ h5 {
 /* Dropdown Content (Hidden by Default) */
 .dropdown-content {
   display: none;
-  position: relative;
+  position: absolute;
   background-color: #0795bb;
-  min-width: 60px;
+  min-width: 160px;
   box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
   z-index: 1;
   border: none;
+  padding: 6px;
 }
 
 /* Links inside the dropdown */
@@ -326,6 +327,7 @@ h5 {
   padding: 8px 8px;
   text-decoration: none;
   display: inline-block;
+  width: calc(25% - 6px);
   font-size: 14px;
 }
 
