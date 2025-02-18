@@ -1,0 +1,13 @@
+{
+    "name": "Python",
+    "build": {
+        "dockerfile": "../Dockerfile"
+    },
+    "customizations": {
+        "vscodium": {
+            "extensions": [
+                "formulahendry.code-runner"
+            ]
+        }
+    }
+}
