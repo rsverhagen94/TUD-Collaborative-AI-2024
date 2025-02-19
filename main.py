@@ -14,6 +14,10 @@ if __name__ == "__main__":
     choice1=input()
     print("\nEnter a name or id for the human agent:")
     choice2=input()
+
+    if len(choice2) <= 1:
+        raise RuntimeError("Due to a bug in the code, agent names with 1 character cause the project to break. Please use longer names instead!")
+
     if choice1=='tutorial':
         builder = create_builder(task_type='tutorial',condition='tutorial', name=choice2, folder=fld)
     else:
