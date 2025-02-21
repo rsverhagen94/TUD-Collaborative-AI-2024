@@ -45,10 +45,7 @@ def output_logger(fld):
             if row:
                 res = {trustfile_header[i] : row[i] for i in range(len(trustfile_header))}
                 trustfile_contents.append(res)
-    # Retrieve the stored trust belief values
-    name = trustfile_contents[-1]['name']
-    competence = trustfile_contents[-1]['competence']
-    willingness = trustfile_contents[-1]['willingness']
+    
     # Retrieve the number of ticks to finish the task, score, and completeness
     no_ticks = action_contents[-1]['tick_nr']
     score = action_contents[-1]['score']
@@ -59,6 +56,18 @@ def output_logger(fld):
         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         csv_writer.writerow(['completeness','score','no_ticks','agent_actions','human_actions'])
         csv_writer.writerow([completeness,score,no_ticks,len(unique_agent_actions),len(unique_human_actions)])
-    with open(fld + '/beliefs/allTrustBeliefs.csv', mode='a+') as csv_file:
+        
+    # Update the trust belief values
+    trust_file_path = fld + '/beliefs/allTrustBeliefs.csv'
+    
+    # Open trust file and remove the old human rows
+    with open(trust_file_path, mode='r') as csv_file:
+        reader = csv.reader(csv_file, delimiter=';', quotechar='"')
+        trustfile_header = next(reader)  # Read header
+        updated_trust = [row for row in reader if row[0] != trustfile_contents[0]['name']]  # Remove old human rows
+    
+    # Write back the updated data with new trust values
+    with open(trust_file_path, mode='w', newline='') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        csv_writer.writerow([name,competence,willingness])
+        csv_writer.writerow(trustfile_header)  # Write header
+        csv_writer.writerows(updated_trust + [[t['name'], t['task'], t['competence'], t['willingness']] for t in trustfile_contents])  # Append new data
