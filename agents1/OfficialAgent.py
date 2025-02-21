@@ -914,6 +914,8 @@ class BaselineAgent(ArtificialBrain):
         # Create a dictionary with trust values for all team members
         trustBeliefs = {}
         # Set a default starting trust value
+        # TODO: Discuss with team members what the default trust value should be,
+        #  for now we set it to 0.5, note that the trust value should be in the range of -1 to 1
         default = 0.5
         trustfile_header = []
         trustfile_contents = []
@@ -933,9 +935,11 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness}
                 # Initialize default trust values
                 if row and row[0] != self._human_name:
-                    competence = default
-                    willingness = default
-                    trustBeliefs[self._human_name] = {'competence': competence, 'willingness': willingness}
+                    for task in self._tasks:
+                        trustBeliefs[self._human_name][task] = {
+                            'competence': default,
+                            'willingness': default
+                        }
         return trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
