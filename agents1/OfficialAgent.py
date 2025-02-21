@@ -928,18 +928,23 @@ class BaselineAgent(ArtificialBrain):
                     continue
                 # Retrieve trust values 
                 if row and row[0] == self._human_name:
-                    name = row[0]
-                    task = row[1]
-                    competence = float(row[2])
-                    willingness = float(row[3])
+                    name, task, competence, willingness = row[0], row[1], float(row[2]), float(row[3])
+                    
+                    # Ensure dictionary structure exists
+                    if name not in trustBeliefs:
+                        trustBeliefs[name] = {}
+
+                    # Store retrieved trust values for performed tasks
                     trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness}
-                # Initialize default trust values
-                if row and row[0] != self._human_name:
-                    for task in self._tasks:
-                        trustBeliefs[self._human_name][task] = {
-                            'competence': default,
-                            'willingness': default
-                        }
+
+        # Check for missing tasks and initialize defaults only for them**
+        if self._human_name not in trustBeliefs:
+            trustBeliefs[self._human_name] = {}
+
+        for task in self._tasks:
+            if task not in trustBeliefs[self._human_name]:  # Only initialize if missing
+                trustBeliefs[self._human_name][task] = {'competence': default, 'willingness': default}
+
         return trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
@@ -950,7 +955,7 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
+                trustBeliefs[self._human_name]['search']['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
                 trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
                                                                        1)
