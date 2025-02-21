@@ -79,7 +79,10 @@ class BaselineAgent(ArtificialBrain):
         self._state_tracker = StateTracker(agent_id=self.agent_id)
         self._navigator = Navigator(agent_id=self.agent_id, action_set=self.action_set,
                                     algorithm=Navigator.A_STAR_ALGORITHM)
-
+        # Initialization of the tasks the agent can perform
+        self._tasks = ['search', 'rescue_green', 'rescue_yellow', 'rescue_red', 
+                       'remove_rock', 'remove_stone', 'remove_tree']
+        
     def filter_observations(self, state):
         # Filtering of the world state before deciding on an action 
         return state
@@ -924,9 +927,10 @@ class BaselineAgent(ArtificialBrain):
                 # Retrieve trust values 
                 if row and row[0] == self._human_name:
                     name = row[0]
-                    competence = float(row[1])
-                    willingness = float(row[2])
-                    trustBeliefs[name] = {'competence': competence, 'willingness': willingness}
+                    task = row[1]
+                    competence = float(row[2])
+                    willingness = float(row[3])
+                    trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness}
                 # Initialize default trust values
                 if row and row[0] != self._human_name:
                     competence = default
