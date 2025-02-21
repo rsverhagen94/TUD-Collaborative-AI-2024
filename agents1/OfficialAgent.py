@@ -955,16 +955,16 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                trustBeliefs[self._human_name]['search']['competence'] += 0.10
+                trustBeliefs[self._human_name]['search']['competence'] += 0.10 #TODO: change 'search' to the task the human is performing
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                trustBeliefs[self._human_name]['search']['competence'] = np.clip(trustBeliefs[self._human_name]['search']['competence'], -1,
                                                                        1)
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name]['willingness']])
+            csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
+            csv_writer.writerow([self._human_name, 'search', trustBeliefs[self._human_name]['search']['competence'],
+                                 trustBeliefs[self._human_name]['search']['willingness']])
 
         return trustBeliefs
 
