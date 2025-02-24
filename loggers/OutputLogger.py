@@ -36,6 +36,14 @@ def output_logger(fld, human_name):
             res = {action_header[i]: row[i] for i in range(len(action_header))}
             action_contents.append(res)
 
+    # Retrieve the stored actions
+    no_ticks = action_contents[-1]['tick_nr']
+    score = action_contents[-1]['score']
+    completeness = action_contents[-1]['completeness']
+
+    # Save the output as a csv file
+    print("Saving output...")
+
     with open(fld+'/beliefs/currentTrustBelief.json', 'r') as currentFile:
         currentData = json.load(currentFile)
         with open(fld + '/beliefs/allTrustBeliefs.json', mode='r') as allFile:
@@ -45,31 +53,7 @@ def output_logger(fld, human_name):
             with open(fld + '/beliefs/allTrustBeliefs.json', mode='w') as allFile:
                 json.dump(allData, allFile, indent=4)
 
-
-    with open(fld+'/beliefs/currentTrustBelief.csv') as csvfile:
-        reader = csv.reader(csvfile, delimiter=';', quotechar="'")
-        for row in reader:
-            if trustfile_header==[]:
-                trustfile_header=row
-                continue
-            if row:
-                res = {trustfile_header[i] : row[i] for i in range(len(trustfile_header))}
-                trustfile_contents.append(res)
-    # Retrieve the stored trust belief values
-    #name = trustfile_contents[-1]['name']
-    #competence = trustfile_contents[-1]['competence']
-    #willingness = trustfile_contents[-1]['willingness']
-    # Retrieve the number of ticks to finish the task, score, and completeness
-    no_ticks = action_contents[-1]['tick_nr']
-    score = action_contents[-1]['score']
-    completeness = action_contents[-1]['completeness']
-    # Save the output as a csv file
-    print("Saving output...")
     with open(os.path.join(recent_dir,'world_1/output.csv'),mode='w') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         csv_writer.writerow(['completeness','score','no_ticks','agent_actions','human_actions'])
         csv_writer.writerow([completeness,score,no_ticks,len(unique_agent_actions),len(unique_human_actions)])
-    return
-    with open(fld + '/beliefs/allTrustBeliefs.csv', mode='a+') as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        csv_writer.writerow([name,competence,willingness])
