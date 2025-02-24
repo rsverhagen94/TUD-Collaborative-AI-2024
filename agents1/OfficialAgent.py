@@ -73,6 +73,7 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
+        self._tasks = ['remove_objects']
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -927,14 +928,16 @@ class BaselineAgent(ArtificialBrain):
                     task = row[1]
                     competence = float(row[2])
                     willingness = float(row[3])
-                    trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness}
+                    instances = int(row[4])
+                    trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness, 'instances': instances}
                 # Initialize default trust values
                 if row and row[0] != self._human_name:
-                    tasks = ['remove_object']
                     competence = default
                     willingness = default
-                    for task in tasks:
-                        trustBeliefs[self._human_name][task] = {'competence': competence, 'willingness': willingness}
+                    instances = 0
+                    trustBeliefs[self._human_name] = {}
+                    for task in self._tasks:
+                        trustBeliefs[self._human_name][task] = {'competence': competence, 'willingness': willingness, 'instances': instances}
         return trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
@@ -942,29 +945,60 @@ class BaselineAgent(ArtificialBrain):
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
         # Update the trust value based on for example the received messages
+        print("Trust belief values: ", trustBeliefs)
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
-            if 'remove alone' in message.lower():
-                trustBeliefs[self._human_name]['competence'] += 0.10
+            if 'i will remove alone' in message.lower():
+                competence = trustBeliefs[self._human_name]['remove_objects']['competence']
+                willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
+                instances = trustBeliefs[self._human_name]['remove_objects']['instances']
+                competence = ((competence*instances) + (competence+0.1))/(instances+1)
+                willingness = ((willingness*instances) + (willingness+0.1))/(instances+1)
+                print("Competence value: ", competence)
+                print("Willingness value: ", willingness)
+                trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
+                trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
+                trustBeliefs[self._human_name]['remove_objects']['competence'] = competence
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                trustBeliefs[self._human_name]['remove_objects']['competence'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['competence'], -1,
                                                                        1)
-
-                trustBeliefs[self._human_name]['willingness'] += 0.10
                 # Restrict the willingness belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['willingness'] = np.clip(trustBeliefs[self._human_name]['willingness'], -1,
+                trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
                                                                        1)
-            # if 'Collect' in message:
-            #     trustBeliefs[self._human_name]['competence'] += 0.10
-            #     # Restrict the competence belief to a range of -1 to 1
-            #     trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
-            #                                                            1)
+            # Decrease willingness if the agent replies remove alone
+            elif 'remove alone' in message.lower():
+                willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
+                instances = trustBeliefs[self._human_name]['remove_objects']['instances']
+                willingness = ((willingness*instances) + (willingness-0.1))/(instances+1)
+                trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
+                trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
+                trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
+                                                                       1)
+            # Increase willingness if agent replies remove together
+            elif 'remove together' in message.lower():
+                willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
+                instances = trustBeliefs[self._human_name]['remove_objects']['instances']
+                willingness = ((willingness*instances) + (willingness+0.1))/(instances+1)
+                trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
+                trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
+                trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
+                                                                       1)
+            # Change competence when agent asks for help
+            elif 'remove: at' in message.lower():
+                competence = trustBeliefs[self._human_name]['remove_objects']['competence']
+                instances = trustBeliefs[self._human_name]['remove_objects']['instances']
+                competence = ((competence*instances) + (competence+0.1))/(instances+1)
+                trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
+                trustBeliefs[self._human_name]['remove_objects']['competence'] = competence
+                trustBeliefs[self._human_name]['remove_objects']['competence'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['competence'], -1,
+                                                                       1)
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name]['willingness']])
+            csv_writer.writerow(['name', 'task', 'competence', 'willingness', 'instances'])
+            for task in self._tasks:
+                csv_writer.writerow([self._human_name, task, trustBeliefs[self._human_name][task]['competence'],
+                                 trustBeliefs[self._human_name][task]['willingness'], trustBeliefs[self._human_name][task]['instances']])
 
         return trustBeliefs
 
