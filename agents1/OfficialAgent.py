@@ -1,4 +1,4 @@
-import sys, random, enum, ast, time, csv
+import sys, random, enum, ast, time, csv, json
 import numpy as np
 from matrx import grid_world
 from brains1.ArtificialBrain import ArtificialBrain
@@ -39,6 +39,8 @@ class Phase(enum.Enum):
 
 
 class BaselineAgent(ArtificialBrain):
+    TASKS = ["search", "rescue"]
+
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
         # Initialization of some relevant variables
@@ -914,6 +916,18 @@ class BaselineAgent(ArtificialBrain):
         default = 0.5
         trustfile_header = []
         trustfile_contents = []
+
+        with open(folder + '/beliefs/allTrustBeliefs.json', 'r') as file:
+            data = json.load(file)
+            if self._human_name in data:
+                return data[self._human_name]
+            else:
+                trustBeliefs[self._human_name] = {
+                    task: {"competence": default, "willingness": default}
+                    for task in self.TASKS
+                }
+                return trustBeliefs[self._human_name]
+
         # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
         with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
             reader = csv.reader(csvfile, delimiter=';', quotechar="'")
@@ -942,10 +956,14 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
+                trustBeliefs['rescue']['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
-                                                                       1)
+                trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
+        
+        with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
+            json.dump(trustBeliefs, file, indent=4)
+        return
+
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)

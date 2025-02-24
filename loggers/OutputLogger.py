@@ -1,6 +1,6 @@
 import os, requests
 import sys
-import csv
+import csv, json
 import glob
 import pathlib
 
@@ -35,6 +35,14 @@ def output_logger(fld):
                     unique_agent_actions.append(row[4:6])
             res = {action_header[i]: row[i] for i in range(len(action_header))}
             action_contents.append(res)
+
+    with open(fld+'/beliefs/currentTrustBelief.json', 'r') as currentFile:
+        currentData = json.load(currentFile)
+        with open(fld + '/beliefs/allTrustBeliefs.json', mode='w') as allFile:
+            allData = json.load(allFile)
+            allData[self._human_name] = currentData
+            json.dump(allData, allFile, indent=4)
+
 
     with open(fld+'/beliefs/currentTrustBelief.csv') as csvfile:
         reader = csv.reader(csvfile, delimiter=';', quotechar="'")

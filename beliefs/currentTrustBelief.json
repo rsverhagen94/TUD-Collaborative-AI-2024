@@ -1,0 +1,10 @@
+{
+    "search": {
+        "competence": 0.5,
+        "willingness": 0.5
+    },
+    "rescue": {
+        "competence": 0.5,
+        "willingness": 0.5
+    }
+}
