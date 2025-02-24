@@ -1,4 +1,4 @@
-# Human-Agent Teamwork for Search and Rescue
+# Human-Agent Teamwork for Search and Rescue Team 26
 This is the repository for the interdependence and trust assignments of the course on Collaborative AI at the TU Delft. The repository uses the [MATRX software package](https://matrx-software.com/) to create a simulated search and rescue task in a two-dimensional grid environment. The environment consists of multiple areas, injured victims, and obstacles blocking area entrances. One artificial agent (called RescueBot) and one human agent need to rescue these victims and deliver them to a drop off zone, while communicating and collaborating with each other.
 
 ![environment-chat-1](https://user-images.githubusercontent.com/54837051/204800699-89ed7159-d329-4f95-8441-acb601ff90a5.png)
