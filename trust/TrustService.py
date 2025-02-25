@@ -31,6 +31,13 @@ class TrustService:
         self.csv_file = 'trust/trust_scores.csv'
         self.trust_scores = {}
         os.makedirs(os.path.dirname(self.csv_file), exist_ok=True)
+        
+        # Perceived state represents the agent's understanding of the world.
+        # perceived_state["rooms"] is a dictionary where keys are room IDs and values are dictionaries with room attributes.
+        # Example:
+        # perceived_state["rooms"]["room1"]["searched"] = 1 indicates that room1 has been searched by a human.
+        # perceived_state["rooms"]["room1"]["searched"] = 2 indicates that room1 has been searched by a robot.
+        self.perceived_state = {}
 
     def create_trust_file(self):
         if not os.path.exists(self.csv_file):
@@ -95,3 +102,30 @@ class TrustService:
         send_message("Trust belief change triggered for user {} with value {} and weight {}".format(user_id, value, weight), 'DEBUG TRUST')
         if message:
             send_message("Message: {}".format(message), 'DEBUG TRUST')
+            
+    def human_search_room(self, user_id, room_id):
+        """
+        Marks a room as searched by a human.
+        """
+        self.perceived_state["rooms"][room_id]["searched"] = 1
+        
+    def robot_search_room(self, user_id, room_id):
+        """
+        Marks a room as searched by a robot.
+        """
+        if self.perceived_state["rooms"][room_id]["searched"] == 1:
+            # The room has been searched by the human before
+            pass
+        self.perceived_state["rooms"][room_id]["searched"] = 2
+        
+    def was_searched(self, room_id):
+        """
+        Returns the integer value of the room's searched status.
+        """
+        if "rooms" not in self.perceived_state:
+            return 0
+        if room_id not in self.perceived_state["rooms"]:
+            return 0
+        if "searched" not in self.perceived_state["rooms"][room_id]:
+            return 0
+        return self.perceived_state["rooms"][room_id]["searched"]
