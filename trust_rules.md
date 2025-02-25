@@ -1,0 +1,14 @@
+The trust will be lowered in the following phases/situations:
+    - PICK_UNSEARCHED_ROOM:
+        - when the agent has to re-search all the rooms, the all values are lowered
+    - REMOVE_OBSTACLE_IF_NEEDED:
+        - when the human refuses to help the agent remove a rock, the rescue willingness is lowered
+        - when the human wants to help the agent remove a rock, the rescue willingness is increased
+        - when the human refuses to help the agent remove a tree, the rescue willingness is lowered
+        - when the human wants to help the agent remove a tree, the rescue willingness is increased
+        - when the human refuses to help the agent remove a stone, the rescue willingness is lowered
+        - when the human wants to help the agent remove a stone, the rescue willingness is increased
+    - FOLLOW_ROOM_SEARCH_PATH
+        - if human tells agent a victim is in a room and the victim was actually there, the rescue willingness and search competence + willingness go up
+    - TAKE_VICTIM
+        - when carrying together, rescue willingess + competence go up
