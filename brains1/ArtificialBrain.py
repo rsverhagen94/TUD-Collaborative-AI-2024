@@ -655,7 +655,7 @@ class ArtificialBrain(ArtificialAgentBrain, ABC):
         # define duration to pick up a mildly injured victim by agent
         if act == 'CarryObject' and 'mild' in params['object_id']:
             params['action_duration'] = 150
-
+    
         return act,params
     
     @abstractmethod
