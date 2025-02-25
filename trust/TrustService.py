@@ -1,5 +1,6 @@
 from enum import Enum
 import os
+import csv
 
 class TrustBeliefs(Enum):
     SEARCH_WILLINGNESS = 1
@@ -81,6 +82,16 @@ class TrustService:
                     'rescue_competence': score[TrustBeliefs.RESCUE_COMPETENCE]
                 })
         
-    def trigger_trust_change(self, trust_belief, user_id, value):
-        # Update trust score based on stuff
-        pass
+    def trigger_trust_change(self, trust_belief, user_id, send_message, value, weight=1, message=None):
+        """
+        Adjusts the trust score for a specific user and trust belief.
+
+        Parameters:
+            trust_belief (TrustBeliefs): The trust belief to update.
+            user_id (str): The identifier of the user whose trust score will be adjusted.
+            value (int): The direction of change (-1 or 1) indicating a decrease or increase.
+            weight (float): A multiplier for how much the trust score should change.
+        """
+        send_message("Trust belief change triggered for user {} with value {} and weight {}".format(user_id, value, weight), 'DEBUG TRUST')
+        if message:
+            send_message("Message: {}".format(message), 'DEBUG TRUST')

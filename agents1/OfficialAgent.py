@@ -1,5 +1,6 @@
 import sys, random, enum, ast, time, csv
 import numpy as np
+from trust import TrustService, TrustBeliefs
 from matrx import grid_world
 from brains1.ArtificialBrain import ArtificialBrain
 from actions1.CustomActions import *
@@ -242,6 +243,10 @@ class BaselineAgent(ArtificialBrain):
                     self.received_messages_content = []
                     self._send_message('Going to re-search all areas.', 'RescueBot')
                     self._phase = Phase.FIND_NEXT_GOAL
+                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
                 # If there are still areas to search, define which one to search next
                 else:
                     # Identify the closest door when the agent did not search any areas yet
@@ -382,7 +387,7 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time: 5 seconds \n afstand - distance between us: ' + self._distance_human,
                                               'RescueBot')
                             self._waiting = True
-                            # Determine the next area to explore if the human tells the agent not to remove the obstacle
+                        # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             self._answered = True
@@ -390,6 +395,7 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
                         # Wait for the human to help removing the obstacle and remove the obstacle together
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
@@ -399,6 +405,7 @@ class BaselineAgent(ArtificialBrain):
                             if not state[{'is_human_agent': True}]:
                                 self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
                                                   'RescueBot')
+                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
@@ -428,6 +435,7 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
@@ -436,6 +444,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._waiting = False
                                 self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
                                                   'RescueBot')
+                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
                             if self._remove:
                                 self._send_message('Removing tree blocking ' + str(
                                     self._door['room_name']) + ' because you asked me to.', 'RescueBot')
@@ -466,6 +475,7 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
+                            self.trust_service.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
                         # Remove the obstacle alone if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove alone' and not self._remove:
@@ -486,6 +496,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
+                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
@@ -576,6 +587,10 @@ class BaselineAgent(ArtificialBrain):
                                     self._send_message('Found ' + vic + ' in ' + self._door[
                                         'room_name'] + ' because you told me ' + vic + ' was located here.',
                                                       'RescueBot')
+                                    # This should be 
+                                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
+                                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, 1)
+                                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
                                         self._searched_rooms.append(self._door['room_name'])
@@ -750,6 +765,8 @@ class BaselineAgent(ArtificialBrain):
                     if self._goal_vic not in self._collected_victims:
                         self._collected_victims.append(self._goal_vic)
                     self._carrying_together = True
+                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name, self._send_message, 1)
                     # Determine the next victim to rescue or search
                     self._phase = Phase.FIND_NEXT_GOAL
                 # When rescuing mildly injured victims alone, pick the victim up and plan the path to the drop zone
