@@ -1,0 +1,9 @@
+
+/.venv
+/actions1/__pycache__
+/brains1/__pycache__
+/loggers/__pycache__
+/logs
+/SaR_gui/__pycache__
+/worlds1/__pycache__
+/agents1/__pycache__
