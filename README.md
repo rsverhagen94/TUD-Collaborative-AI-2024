@@ -27,7 +27,7 @@ The objective of the task is to find eight target victims in the different areas
 - The normal human can carry only one victim at the same time.
 ## Installation
 Download or clone this repository and the required dependencies listed in the 'requirements.txt' file. We recommend the use of Python 3.8 or 3.9, and to create a virtual environment for this project. You can use the following step by step installation steps after cloning or downloading this repository:
-- Install the required dependencies through 'pip install -r requirements.txt'. 
+- Install the required dependencies through 'pip install -r requirements.txt'. If you run into issues, how a look at this: https://github.com/rsverhagen94/TUD-Collaborative-AI-2024/issues/3.
 - Launch the human-agent teamwork task by running main.py.
 - You will be asked to enter which task type to run: 
   - 'tutorial' will launch a step by step tutorial of the task in a simplified and smaller world, aimed at getting you familiar with the environment, controls, and messaging system. We highly recommend you to start with this tutorial.
