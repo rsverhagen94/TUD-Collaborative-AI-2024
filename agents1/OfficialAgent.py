@@ -1,5 +1,6 @@
 import sys, random, enum, ast, time, csv, json
 import numpy as np
+import re
 from matrx import grid_world
 from brains1.ArtificialBrain import ArtificialBrain
 from actions1.CustomActions import *
@@ -39,7 +40,7 @@ class Phase(enum.Enum):
 
 
 class BaselineAgent(ArtificialBrain):
-    TASKS = ["search", "rescue"]
+    TASKS = ["search rooms", "destroy obstacles", "rescue"]
 
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
@@ -67,6 +68,8 @@ class BaselineAgent(ArtificialBrain):
         self._distance_drop = None
         self._agent_loc = None
         self._todo = []
+        self._last_processed_index = 0
+        self._stored_first_message = None
         self._answered = False
         self._to_search = []
         self._carrying = False
@@ -74,6 +77,7 @@ class BaselineAgent(ArtificialBrain):
         self._rescue = None
         self._recent_vic = None
         self._received_messages = []
+        self._all_messages = []
         self._moving = False
 
     def initialize(self):
@@ -883,6 +887,7 @@ class BaselineAgent(ArtificialBrain):
                         if area in self._searched_rooms:
                             self._searched_rooms.remove(area)
                         # Clear received messages (bug fix)
+                        self._all_messages.append(msg)
                         self.received_messages = []
                         self.received_messages_content = []
                         self._moving = True
@@ -928,7 +933,7 @@ class BaselineAgent(ArtificialBrain):
                 return trustBeliefs[self._human_name]
 
     COMPETENCE_MODEL = {
-        "rescueSuccess": {"function": "logistic", "L": 0.3, "k": 1.5, "x0": 3}
+        "rescueSuccess": {"function": "logistic", "L": 0.3, "k": 1.5, "x0": 3} # Test entry. Need to fine tune parameters.
     }
 
     WILLINGNESS_MODEL = {
@@ -943,12 +948,107 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                self._updateTrust(trustBeliefs, "rescue", "rescueSuccess", 1)
+                self._updateTrust(trustBeliefs, "rescue", "rescueSuccess", 1) # Just an example of how to use updateTrust instead of += some number.
                 #trustBeliefs['rescue']['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
                 #trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
         
         # Save current trust belief values so we can later use and retrieve them to add to a json file with all the logged trust belief values
+
+        victim_types = [
+        "critically injured girl",
+        "critically injured elderly woman",
+        "critically injured man",
+        "critically injured dog",
+        "mildly injured boy",
+        "mildly injured elderly man",
+        "mildly injured woman",
+        "mildly injured cat"
+        ]
+        # --- Filter out messages containing "Our score is" ---
+        current_filtered = [msg for msg in self.received_messages_content if "our score is" not in msg.lower()]
+
+        # --- Check if a flush occurred ---
+        if current_filtered:
+            # If the first message in the new filtered array is different, a flush occurred.
+            if self._stored_first_message is None or current_filtered[0] != self._stored_first_message:
+                # A flush occurred: treat all messages in current_filtered as new.
+                new_msgs = current_filtered
+                self._all_messages.extend(new_msgs)
+                # Reset the counter to the length of the new filtered array.
+                self._last_processed_index = len(current_filtered)
+                # Update the stored first message for future comparisons.
+                self._stored_first_message = current_filtered[0]
+            else:
+                # No flush: append messages not processed yet (if any).
+                new_msgs = current_filtered[self._last_processed_index:]
+                if new_msgs:
+                    self._all_messages.extend(new_msgs)
+                    self._last_processed_index += len(new_msgs)
+    
+        for i, message in enumerate(self._all_messages):
+            print(i)
+            current_msg = message.lower()
+            next_msg = self._all_messages[i+1].lower() if i+1 < len(self._all_messages) else None
+            print('first: ' + current_msg)
+            if next_msg != None:
+                if 'found mildly injured' in current_msg and 'close' in current_msg and 'rescue together' in next_msg:
+                    trustBeliefs['rescue']['willingness'] += 0.1
+                    for victim in victim_types:
+                        if victim in current_msg and victim in self._collected_victims:
+                            trustBeliefs['rescue']['competence'] += 0.1
+                if 'found mildly injured' in current_msg and 'close' in current_msg and ('rescue alone' in next_msg or 'continue' in next_msg):
+                    trustBeliefs['rescue']['willingness'] -= 0.1
+
+                if 'found critically injured' in current_msg and 'close' in current_msg and 'rescue' in next_msg:
+                    trustBeliefs['rescue']['willingness'] += 0.2
+                    for victim in victim_types:
+                        if victim in current_msg and victim in self._collected_victims:
+                            trustBeliefs['rescue']['competence'] += 0.2
+                if 'found critically injured' in current_msg and 'close' in current_msg and 'continue' in next_msg:
+                    trustBeliefs['rescue']['willingness'] -= 0.1
+
+                if 'found rock' in current_msg and 'close' in current_msg and 'remove' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    area_match = re.search(r'area\s*(\d+)', current_msg)
+                    if area_match:
+                        blocked_area = "area " + area_match.group(1)
+                        print('blocked:' + blocked_area)
+                        print('searched:' + str(self._searched_rooms))
+                        # Check if the blocked area is in the list of searched rooms.
+                        if blocked_area in self._searched_rooms:
+                            trustBeliefs['destroy obstacles']['competence'] += 0.10
+                
+                if 'found rock' in current_msg and 'close' in current_msg and 'continue' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] -= 0.1
+
+                if 'found stones' in current_msg and 'close' in current_msg and 'remove together' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    area_match = re.search(r'area\s*(\d+)', current_msg)
+                    if area_match:
+                        blocked_area = "area " + area_match.group(1)
+                        # Check if the blocked area is in the list of searched rooms.
+                        if blocked_area in self._searched_rooms:
+                            trustBeliefs['destroy obstacles']['competence'] += 0.10
+
+                if 'found stones' in current_msg and 'close' in current_msg and ('remove alone' in next_msg or 'continue' in next_msg):
+                    trustBeliefs['destroy obstacles']['willingness'] -= 0.1
+
+                if 'to help you remove an obstacle' in current_msg and 'removing tree' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    trustBeliefs['destroy obstacles']['competence'] += 0.1
+                
+                if 'collect' in current_msg:
+                    trustBeliefs['rescue']['willingness'] += 0.1
+                    for victim in victim_types:
+                        if victim in current_msg and victim in self._collected_victims:
+                            trustBeliefs['rescue']['competence'] += 0.2
+                
+                if 'i searched the whole area without finding' in current_msg:
+                    trustBeliefs['search']['competence'] -= 0.5
+                
+                print('next: ' + next_msg)
+
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
             json.dump(trustBeliefs, file, indent=4)
 
