@@ -39,7 +39,7 @@ class Phase(enum.Enum):
 
 
 class BaselineAgent(ArtificialBrain):
-    TASKS = ["search", "rescue"]
+    TASKS = ["search rooms", "destroy obstacles", "rescue"]
 
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
@@ -67,6 +67,8 @@ class BaselineAgent(ArtificialBrain):
         self._distance_drop = None
         self._agent_loc = None
         self._todo = []
+        self._last_processed_index = 0
+        self._stored_first_message = None
         self._answered = False
         self._to_search = []
         self._carrying = False
@@ -74,6 +76,7 @@ class BaselineAgent(ArtificialBrain):
         self._rescue = None
         self._recent_vic = None
         self._received_messages = []
+        self._all_messages = []
         self._moving = False
 
     def initialize(self):
@@ -952,17 +955,39 @@ class BaselineAgent(ArtificialBrain):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
-        # Update the trust value based on for example the received messages
-        for message in receivedMessages:
-            # Increase agent trust in a team member that rescued a victim
-            if 'Collect' in message:
-                trustBeliefs['rescue']['competence'] += 0.10
-                # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
-        
+         # --- Filter out messages containing "Our score is" ---
+        current_filtered = [msg for msg in self.received_messages_content if "our score is" not in msg.lower()]
+
+        # --- Check if a flush occurred ---
+        if current_filtered:
+            # If the first message in the new filtered array is different, a flush occurred.
+            if self._stored_first_message is None or current_filtered[0] != self._stored_first_message:
+                # A flush occurred: treat all messages in current_filtered as new.
+                new_msgs = current_filtered
+                self._all_messages.extend(new_msgs)
+                # Reset the counter to the length of the new filtered array.
+                self._last_processed_index = len(current_filtered)
+                # Update the stored first message for future comparisons.
+                self._stored_first_message = current_filtered[0]
+            else:
+                # No flush: append messages not processed yet (if any).
+                new_msgs = current_filtered[self._last_processed_index:]
+                if new_msgs:
+                    self._all_messages.extend(new_msgs)
+                    self._last_processed_index += len(new_msgs)
+    
+        for i, message in enumerate(self._all_messages):
+            print(i)
+            current_msg = message.lower()
+            next_msg = self._all_messages[i+1].lower() if i+1 < len(self._all_messages) else None
+            print('first: ' + current_msg)
+            if next_msg != None:
+                print('next: ' + next_msg)
+
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
             json.dump(trustBeliefs, file, indent=4)
         return
+
 
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
