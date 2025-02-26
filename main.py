@@ -39,5 +39,5 @@ if __name__ == "__main__":
     vis_thread.join()
     if choice1=="official":
         # Generate one final output log file for the official task type
-        output_logger(fld)
+        output_logger(fld, choice2)
     builder.stop()

@@ -917,9 +917,8 @@ class BaselineAgent(ArtificialBrain):
         trustBeliefs = {}
         # Set a default starting trust value
         default = 0.5
-        trustfile_header = []
-        trustfile_contents = []
 
+        # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
         with open(folder + '/beliefs/allTrustBeliefs.json', 'r') as file:
             data = json.load(file)
             if self._human_name in data:
@@ -931,25 +930,6 @@ class BaselineAgent(ArtificialBrain):
                 }
                 return trustBeliefs[self._human_name]
 
-        # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
-        with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
-            reader = csv.reader(csvfile, delimiter=';', quotechar="'")
-            for row in reader:
-                if trustfile_header == []:
-                    trustfile_header = row
-                    continue
-                # Retrieve trust values 
-                if row and row[0] == self._human_name:
-                    name = row[0]
-                    competence = float(row[1])
-                    willingness = float(row[2])
-                    trustBeliefs[name] = {'competence': competence, 'willingness': willingness}
-                # Initialize default trust values
-                if row and row[0] != self._human_name:
-                    competence = default
-                    willingness = default
-                    trustBeliefs[self._human_name] = {'competence': competence, 'willingness': willingness}
-        return trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
         '''
