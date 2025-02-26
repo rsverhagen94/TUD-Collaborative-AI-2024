@@ -1,5 +1,6 @@
 import sys, random, enum, ast, time, csv, json
 import numpy as np
+import re
 from matrx import grid_world
 from brains1.ArtificialBrain import ArtificialBrain
 from actions1.CustomActions import *
@@ -886,6 +887,7 @@ class BaselineAgent(ArtificialBrain):
                         if area in self._searched_rooms:
                             self._searched_rooms.remove(area)
                         # Clear received messages (bug fix)
+                        self._all_messages.append(msg)
                         self.received_messages = []
                         self.received_messages_content = []
                         self._moving = True
@@ -935,7 +937,18 @@ class BaselineAgent(ArtificialBrain):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
-         # --- Filter out messages containing "Our score is" ---
+
+        victim_types = [
+        "critically injured girl",
+        "critically injured elderly woman",
+        "critically injured man",
+        "critically injured dog",
+        "mildly injured boy",
+        "mildly injured elderly man",
+        "mildly injured woman",
+        "mildly injured cat"
+        ]
+        # --- Filter out messages containing "Our score is" ---
         current_filtered = [msg for msg in self.received_messages_content if "our score is" not in msg.lower()]
 
         # --- Check if a flush occurred ---
@@ -962,19 +975,65 @@ class BaselineAgent(ArtificialBrain):
             next_msg = self._all_messages[i+1].lower() if i+1 < len(self._all_messages) else None
             print('first: ' + current_msg)
             if next_msg != None:
+                if 'found mildly injured' in current_msg and 'close' in current_msg and 'rescue together' in next_msg:
+                    trustBeliefs['rescue']['willingness'] += 0.1
+                    for victim in victim_types:
+                        if victim in current_msg and victim in self._collected_victims:
+                            trustBeliefs['rescue']['competence'] += 0.1
+                if 'found mildly injured' in current_msg and 'close' in current_msg and ('rescue alone' in next_msg or 'continue' in next_msg):
+                    trustBeliefs['rescue']['willingness'] -= 0.1
+
+                if 'found critically injured' in current_msg and 'close' in current_msg and 'rescue' in next_msg:
+                    trustBeliefs['rescue']['willingness'] += 0.2
+                    for victim in victim_types:
+                        if victim in current_msg and victim in self._collected_victims:
+                            trustBeliefs['rescue']['competence'] += 0.2
+                if 'found critically injured' in current_msg and 'close' in current_msg and 'continue' in next_msg:
+                    trustBeliefs['rescue']['willingness'] -= 0.1
+
+                if 'found rock' in current_msg and 'close' in current_msg and 'remove' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    area_match = re.search(r'area\s*(\d+)', current_msg)
+                    if area_match:
+                        blocked_area = "area " + area_match.group(1)
+                        print('blocked:' + blocked_area)
+                        print('searched:' + str(self._searched_rooms))
+                        # Check if the blocked area is in the list of searched rooms.
+                        if blocked_area in self._searched_rooms:
+                            trustBeliefs['destroy obstacles']['competence'] += 0.10
+                
+                if 'found rock' in current_msg and 'close' in current_msg and 'continue' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] -= 0.1
+
+                if 'found stones' in current_msg and 'close' in current_msg and 'remove together' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    area_match = re.search(r'area\s*(\d+)', current_msg)
+                    if area_match:
+                        blocked_area = "area " + area_match.group(1)
+                        # Check if the blocked area is in the list of searched rooms.
+                        if blocked_area in self._searched_rooms:
+                            trustBeliefs['destroy obstacles']['competence'] += 0.10
+
+                if 'found stones' in current_msg and 'close' in current_msg and ('remove alone' in next_msg or 'continue' in next_msg):
+                    trustBeliefs['destroy obstacles']['willingness'] -= 0.1
+
+                if 'to help you remove an obstacle' in current_msg and 'removing tree' in next_msg:
+                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    trustBeliefs['destroy obstacles']['competence'] += 0.1
+                
+                if 'collect' in current_msg:
+                    trustBeliefs['rescue']['willingness'] += 0.1
+                    for victim in victim_types:
+                        if victim in current_msg and victim in self._collected_victims:
+                            trustBeliefs['rescue']['competence'] += 0.2
+                
+                if 'i searched the whole area without finding' in current_msg:
+                    trustBeliefs['search']['competence'] -= 0.5
+                
                 print('next: ' + next_msg)
 
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
             json.dump(trustBeliefs, file, indent=4)
-        return
-
-
-        # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
-        with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
-            csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name]['willingness']])
 
         return trustBeliefs
 
