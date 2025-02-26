@@ -1,3 +1,4 @@
+import copy
 import sys, random, enum, ast, time, csv
 import numpy as np
 from matrx import grid_world
@@ -74,6 +75,9 @@ class BaselineAgent(ArtificialBrain):
         self._received_messages = []
         self._moving = False
         self._tasks = ['remove_objects']
+        self._first_tick = True
+        self._trustBeliefs = {}
+        self._processed_messages = []
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -909,44 +913,62 @@ class BaselineAgent(ArtificialBrain):
         '''
         Loads trust belief values if agent already collaborated with human before, otherwise trust belief values are initialized using default values.
         '''
-        # Create a dictionary with trust values for all team members
-        trustBeliefs = {}
         # Set a default starting trust value
         default = 0.5
         trustfile_header = []
         trustfile_contents = []
         # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
-        with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
-            reader = csv.reader(csvfile, delimiter=';', quotechar="'")
-            for row in reader:
-                if trustfile_header == []:
-                    trustfile_header = row
-                    continue
-                # Retrieve trust values 
-                if row and row[0] == self._human_name:
+        if self._first_tick:
+            with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
+                reader = csv.reader(csvfile, delimiter=';', quotechar="'")
+                for row in reader:
+                    if trustfile_header == []:
+                        trustfile_header = row
+                        continue
+                    print("Row: ", row)
+                    # Retrieve trust values
+                    if row and row[0] == self._human_name:
+                        name = row[0]
+                        task = row[1]
+                        competence = float(row[2])
+                        willingness = float(row[3])
+                        instances = int(row[4])
+                        self._trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness, 'instances': instances}
+                    # Initialize default trust values
+                    if row and row[0] != self._human_name:
+                        competence = default
+                        willingness = default
+                        instances = 0
+                        self._trustBeliefs[self._human_name] = {}
+                        for task in self._tasks:
+                            self._trustBeliefs[self._human_name][task] = {'competence': competence, 'willingness': willingness, 'instances': instances}
+            self._first_tick = False
+        else:
+            with open(folder + '/beliefs/currentTrustBelief.csv') as csvfile:
+                reader = csv.reader(csvfile, delimiter=';', quotechar="'")
+                for row in reader:
+                    if trustfile_header == []:
+                        trustfile_header = row
+                        continue
+                    if len(row) == 0:
+                        continue
                     name = row[0]
                     task = row[1]
                     competence = float(row[2])
                     willingness = float(row[3])
                     instances = int(row[4])
-                    trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness, 'instances': instances}
-                # Initialize default trust values
-                if row and row[0] != self._human_name:
-                    competence = default
-                    willingness = default
-                    instances = 0
-                    trustBeliefs[self._human_name] = {}
-                    for task in self._tasks:
-                        trustBeliefs[self._human_name][task] = {'competence': competence, 'willingness': willingness, 'instances': instances}
-        return trustBeliefs
+                    self._trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness, 'instances': instances}
+        return self._trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
         # Update the trust value based on for example the received messages
-        print("Trust belief values: ", trustBeliefs)
+        print("Received messages: ", receivedMessages)
         for message in receivedMessages:
+            if message in self._processed_messages:
+                continue
             # Increase agent trust in a team member that rescued a victim
             if 'i will remove alone' in message.lower():
                 competence = trustBeliefs[self._human_name]['remove_objects']['competence']
@@ -954,8 +976,8 @@ class BaselineAgent(ArtificialBrain):
                 instances = trustBeliefs[self._human_name]['remove_objects']['instances']
                 competence = ((competence*instances) + (competence+0.1))/(instances+1)
                 willingness = ((willingness*instances) + (willingness+0.1))/(instances+1)
-                print("Competence value: ", competence)
-                print("Willingness value: ", willingness)
+                # print("Competence value: ", competence)
+                # print("Willingness value: ", willingness)
                 trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
                 trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
                 trustBeliefs[self._human_name]['remove_objects']['competence'] = competence
@@ -965,6 +987,7 @@ class BaselineAgent(ArtificialBrain):
                 # Restrict the willingness belief to a range of -1 to 1
                 trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
                                                                        1)
+                self._processed_messages.append(message)
             # Decrease willingness if the agent replies remove alone
             elif 'remove alone' in message.lower():
                 willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
@@ -974,6 +997,7 @@ class BaselineAgent(ArtificialBrain):
                 trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
                 trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
                                                                        1)
+                self._processed_messages.append(message)
             # Increase willingness if agent replies remove together
             elif 'remove together' in message.lower():
                 willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
@@ -983,6 +1007,7 @@ class BaselineAgent(ArtificialBrain):
                 trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
                 trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
                                                                        1)
+                self._processed_messages.append(message)
             # Change competence when agent asks for help
             elif 'remove: at' in message.lower():
                 competence = trustBeliefs[self._human_name]['remove_objects']['competence']
@@ -992,6 +1017,7 @@ class BaselineAgent(ArtificialBrain):
                 trustBeliefs[self._human_name]['remove_objects']['competence'] = competence
                 trustBeliefs[self._human_name]['remove_objects']['competence'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['competence'], -1,
                                                                        1)
+                self._processed_messages.append(message)
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
