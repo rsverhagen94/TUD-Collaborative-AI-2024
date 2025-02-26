@@ -927,6 +927,13 @@ class BaselineAgent(ArtificialBrain):
                 }
                 return trustBeliefs[self._human_name]
 
+    COMPETENCE_MODEL = {
+        "rescueSuccess": {"function": "logistic", "L": 0.3, "k": 1.5, "x0": 3}
+    }
+
+    WILLINGNESS_MODEL = {
+
+    }
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
         '''
@@ -936,15 +943,52 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                trustBeliefs['rescue']['competence'] += 0.10
+                self._updateTrust(trustBeliefs, "rescue", "rescueSuccess", 1)
+                #trustBeliefs['rescue']['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
+                #trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
         
         # Save current trust belief values so we can later use and retrieve them to add to a json file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
             json.dump(trustBeliefs, file, indent=4)
 
         return trustBeliefs
+
+    def _updateTrust(self, trustBeliefs, task, action, x):
+        '''
+        Update the trust values for the given task, based on the given action which is quantified by the value x
+        '''
+        deltaCompetence = 0.0
+        deltaWillingness = 0.0
+
+        if action in self.COMPETENCE_MODEL:
+            params = self.COMPETENCE_MODEL[action]
+            func = params
+            if params["function"] == "logistic":
+                deltaCompetence = self._logistic(x, params["L"], params["k"], params["x0"])
+            else:
+                print("Unknown function for action", action, "in competence model")
+
+        if action in self.WILLINGNESS_MODEL:
+            params = self.WILLINGNESS_MODEL[action]
+            if params["function"] == "logistic":
+                deltaWillingness = self._logistic(x, params["L"], params["k"], params["x0"])
+            else:
+                print("Unknown function for action", action, "in willingness model")
+
+        # Calculate new competence value, clip between (-1,1), replace old competence value
+        newCompetence = trustBeliefs[task]['competence'] + deltaCompetence
+        trustBeliefs[task]['competence'] = np.clip(newCompetence, -1, 1)
+
+        # Calculate new willingness value, clip between (-1,1), replace old willingness value
+        newWillingness = trustBeliefs[task]['willingness'] + deltaWillingness
+        trustBeliefs[task]['willingness'] = np.clip(newWillingness, -1, 1)
+
+    def _logistic(self, x, L, k, x0):
+        '''
+        Implements the mathematical logistic function: https://en.wikipedia.org/wiki/Logistic_function
+        '''
+        return L / (1 + np.exp(-k * (x - x0)))
 
     def _send_message(self, mssg, sender):
         '''
