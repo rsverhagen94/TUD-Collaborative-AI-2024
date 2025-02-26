@@ -695,6 +695,26 @@ class BaselineAgent(ArtificialBrain):
                     self._answered = True
                     self._waiting = False
                     self._todo.append(self._recent_vic)
+
+                    # Penalize the human for ignoring the victim
+                    if 'critical' in self._recent_vic:
+                        # Stronger penalty for ignoring a critically injured victim
+                        self.trustService.trigger_trust_change(
+                            TrustBeliefs.RESCUE_WILLINGNESS, 
+                            self._human_name, 
+                            self._send_message, 
+                            -1,  
+                            message = "Human ignored a critically injured victim in need of rescue."
+                        )
+                    elif 'mild' in self._recent_vic:
+                        # Smaller penalty for ignoring a mildly injured victim
+                        self.trustService.trigger_trust_change(
+                            TrustBeliefs.RESCUE_WILLINGNESS, 
+                            self._human_name, 
+                            self._send_message, 
+                            -1,  
+                            message="Human ignored a mildly injured victim in need of rescue."
+                        )
                     self._recent_vic = None
                     self._phase = Phase.FIND_NEXT_GOAL
                 # Remain idle untill the human communicates to the agent what to do with the found victim
