@@ -49,7 +49,9 @@ class BaselineAgent(ArtificialBrain):
         self._folder = folder
         self._phase = Phase.INTRO
         self._room_vics = []
-        self._searched_rooms = []
+        self._searched_rooms = [] # Contains the searched rooms by the agent and human(based on the beliefs lvl)
+        self._searched_rooms_by_agent = [] # Contains the searched rooms by the agent, so 100% sure
+        self._searched_rooms_claimed_by_human = [] # record the rooms claimed searched by the human
         self._found_victims = []
         self._collected_victims = []
         self._found_victim_logs = {}
@@ -236,7 +238,7 @@ class BaselineAgent(ArtificialBrain):
                 # If all areas have been searched but the task is not finished, start searching areas again
                 if self._remainingZones and len(unsearched_rooms) == 0:
                     self._to_search = []
-                    self._searched_rooms = []
+                    self._searched_rooms = list(self._searched_rooms_by_agent) # Reset the searched rooms
                     self._send_messages = []
                     self.received_messages = []
                     self.received_messages_content = []
@@ -579,6 +581,8 @@ class BaselineAgent(ArtificialBrain):
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
                                         self._searched_rooms.append(self._door['room_name'])
+                                        # mark the area as searched by the agent
+                                        self._searched_rooms_by_agent.append(self._door['room_name'])
                                     # Do not continue searching the rest of the area but start planning to rescue the victim
                                     self._phase = Phase.FIND_NEXT_GOAL
 
@@ -627,6 +631,8 @@ class BaselineAgent(ArtificialBrain):
                 # Add the area to the list of searched areas
                 if self._door['room_name'] not in self._searched_rooms:
                     self._searched_rooms.append(self._door['room_name'])
+                    # mark the area as searched by the agent
+                    self._searched_rooms_by_agent.append(self._door['room_name'])
                 # Make a plan to rescue a found critically injured victim if the human decides so
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue' and 'critical' in self._recent_vic:
@@ -819,6 +825,7 @@ class BaselineAgent(ArtificialBrain):
             for member in teamMembers:
                 if mssg.from_id == member:
                     receivedMessages[member].append(mssg.content)
+                    
         # Check the content of the received messages
         for mssgs in receivedMessages.values():
             for msg in mssgs:
@@ -826,7 +833,11 @@ class BaselineAgent(ArtificialBrain):
                 if msg.startswith("Search:"):
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
+                        # TODO: make decision on whether to add the area to the memory of searched areas based on the belief of the agent
                         self._searched_rooms.append(area)
+                    # always add the area to the memory of searched areas by human for competence evaluation later
+                    if area not in self._searched_rooms_claimed_by_human:
+                        self._searched_rooms_claimed_by_human.append(area)
                 # If a received message involves team members finding victims, add these victims and their locations to memory
                 if msg.startswith("Found:"):
                     # Identify which victim and area it concerns
@@ -837,7 +848,9 @@ class BaselineAgent(ArtificialBrain):
                     loc = 'area ' + msg.split()[-1]
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
+                        # TODO: based on the belief of the agent, decide whether to add the area to the memory of searched areas
                         self._searched_rooms.append(loc)
+                        # TODO: make a list of areas that have been searched by the human(inferred from the 'Found' messages)
                     # Add the victim and its location to memory
                     if foundVic not in self._found_victims:
                         self._found_victims.append(foundVic)
@@ -860,7 +873,9 @@ class BaselineAgent(ArtificialBrain):
                     loc = 'area ' + msg.split()[-1]
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
+                        # TODO: based on the belief of the agent, decide whether to add the area to the memory of searched areas
                         self._searched_rooms.append(loc)
+                        # TODO: make a list of areas that have been searched by the human(inferred from the 'Collect' messages)
                     # Add the victim and location to the memory of found victims
                     if collectVic not in self._found_victims:
                         self._found_victims.append(collectVic)
@@ -882,6 +897,7 @@ class BaselineAgent(ArtificialBrain):
                         self._door = state.get_room_doors(area)[0]
                         self._doormat = state.get_room(area)[-1]['doormat']
                         if area in self._searched_rooms:
+                            # indicate that the human lied about searching the area
                             self._searched_rooms.remove(area)
                         # Clear received messages (bug fix)
                         self.received_messages = []
