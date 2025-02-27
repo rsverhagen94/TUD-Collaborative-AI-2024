@@ -83,7 +83,10 @@ class BaselineAgent(ArtificialBrain):
         self._state_tracker = StateTracker(agent_id=self.agent_id)
         self._navigator = Navigator(agent_id=self.agent_id, action_set=self.action_set,
                                     algorithm=Navigator.A_STAR_ALGORITHM)
-
+        # Initialization of the tasks the agent can perform
+        self._tasks = ['search', 'rescue_green', 'rescue_yellow', 'rescue_red', 
+                       'remove_rock', 'remove_stone', 'remove_tree']
+        
     def filter_observations(self, state):
         # Filtering of the world state before deciding on an action 
         return state
@@ -929,6 +932,8 @@ class BaselineAgent(ArtificialBrain):
         # Create a dictionary with trust values for all team members
         trustBeliefs = {}
         # Set a default starting trust value
+        # TODO: Discuss with team members what the default trust value should be,
+        #  for now we set it to 0.5, note that the trust value should be in the range of -1 to 1
         default = 0.5
         trustfile_header = []
         trustfile_contents = []
@@ -941,15 +946,23 @@ class BaselineAgent(ArtificialBrain):
                     continue
                 # Retrieve trust values 
                 if row and row[0] == self._human_name:
-                    name = row[0]
-                    competence = float(row[1])
-                    willingness = float(row[2])
-                    trustBeliefs[name] = {'competence': competence, 'willingness': willingness}
-                # Initialize default trust values
-                if row and row[0] != self._human_name:
-                    competence = default
-                    willingness = default
-                    trustBeliefs[self._human_name] = {'competence': competence, 'willingness': willingness}
+                    name, task, competence, willingness = row[0], row[1], float(row[2]), float(row[3])
+                    
+                    # Ensure dictionary structure exists
+                    if name not in trustBeliefs:
+                        trustBeliefs[name] = {}
+
+                    # Store retrieved trust values for performed tasks
+                    trustBeliefs[name][task] = {'competence': competence, 'willingness': willingness}
+
+        # Check for missing tasks and initialize defaults only for them**
+        if self._human_name not in trustBeliefs:
+            trustBeliefs[self._human_name] = {}
+
+        for task in self._tasks:
+            if task not in trustBeliefs[self._human_name]:  # Only initialize if missing
+                trustBeliefs[self._human_name][task] = {'competence': default, 'willingness': default}
+
         return trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
@@ -960,16 +973,16 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
+                trustBeliefs[self._human_name]['search']['competence'] += 0.10 #TODO: change 'search' to the task the human is performing
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                trustBeliefs[self._human_name]['search']['competence'] = np.clip(trustBeliefs[self._human_name]['search']['competence'], -1,
                                                                        1)
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name]['willingness']])
+            csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
+            csv_writer.writerow([self._human_name, 'search', trustBeliefs[self._human_name]['search']['competence'],
+                                 trustBeliefs[self._human_name]['search']['willingness']])
 
         return trustBeliefs
 
