@@ -139,6 +139,66 @@ class TrustService:
             return 0
         return self.perceived_state["rooms"][room_id]["searched"]
     
+    def add_victim(self, room_id, victim, found=1):
+        """
+        Adds a victim to the room.
+        Parameters:
+            room_id (str): The identifier of the room where the victim was found.
+            victim (str): The identifier of the victim.
+            found (int): The agent that found the victim (1 for human, 2 for robot).
+        """
+        if "rooms" not in self.perceived_state:
+            self.perceived_state["rooms"] = {}
+        if room_id not in self.perceived_state["rooms"]:
+            self.perceived_state["rooms"][room_id] = {}
+        if "victims" not in self.perceived_state["rooms"][room_id]:
+            self.perceived_state["rooms"][room_id]["victims"] = []
+        self.perceived_state["rooms"][room_id]["victims"].append({
+            "victim": victim,
+            "rescued": False,
+            "found": 1
+        })
+        
+    def victims(self, room_id, rescued=None, found=None):
+        """
+        Returns a list of victims in the room that meet the specified criteria.
+        Parameters:
+            room_id (str): The identifier of the room.
+            rescued (bool): Whether the victim has been rescued.
+            found (int): The agent that found the victim
+        """
+        if "rooms" not in self.perceived_state:
+            return []
+        if room_id not in self.perceived_state["rooms"]:
+            return []
+        if "victims" not in self.perceived_state["rooms"][room_id]:
+            return []
+        victims = self.perceived_state["rooms"][room_id]["victims"]
+        if rescued is not None:
+            victims = [v for v in victims if v["rescued"] == rescued]
+        if found is not None:
+            victims = [v for v in victims if v["found"] == found]
+        return victims
+        
+    def update_victim(self, room_id, victim, rescued):
+        """
+        Updates the status of a victim in the room.
+        Parameters:
+            room_id (str): The identifier of the room where the victim was found.
+            victim (str): The identifier of the victim.
+            rescued (bool): Whether the victim has been rescued.
+        """
+        if "rooms" not in self.perceived_state:
+            return
+        if room_id not in self.perceived_state["rooms"]:
+            return
+        if "victims" not in self.perceived_state["rooms"][room_id]:
+            return
+        for v in self.perceived_state["rooms"][room_id]["victims"]:
+            if v["victim"] == victim:
+                v["rescued"] = rescued
+                break
+                
     # def add_victim(self, room_id, victim):
     #     """
     #     Adds a victim to the room.
