@@ -75,6 +75,8 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
+        self._remainingZones = []
+        self._trustBeliefs = None # only load the trust beliefs once
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -103,8 +105,9 @@ class BaselineAgent(ArtificialBrain):
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
         # Initialize and update trust beliefs for team members
-        trustBeliefs = self._loadBelief(self._team_members, self._folder)
-        self._trustBelief(self._team_members, trustBeliefs, self._folder, self._received_messages)
+        if self._trustBeliefs == None:
+            self._trustBeliefs = self._loadBelief(self._team_members, self._folder)
+        self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, self._received_messages)
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
@@ -965,12 +968,12 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-    def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
+    def _trustBelief(self, state, members, trustBeliefs, folder, receivedMessages):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
         # Update the trust value based on for example the received messages
-        for message in receivedMessages:
+        # for message in receivedMessages:
             # # Increase agent trust in a team member that rescued a victim
             # if 'Collect' in message:
             #     trustBeliefs[self._human_name]['search']['competence'] += 0.10 #TODO: change 'search' to the task the human is performing
@@ -979,7 +982,12 @@ class BaselineAgent(ArtificialBrain):
             #                                                            1)
                 
         # Increase willingness of search task based on the received messages when all areas have been claimed as searched
-        if len(self._searched_rooms) == 14:
+        unsearched_rooms = [room['room_name'] for room in state.values()
+                                   if 'class_inheritance' in room
+                                   and 'Door' in room['class_inheritance']
+                                   and room['room_name'] not in self._searched_rooms
+                                   and room['room_name'] not in self._to_search]
+        if self._remainingZones and len(unsearched_rooms) == 0:
             X = len(self._searched_rooms_claimed_by_human)
             Z = len(self._searched_rooms_by_agent)
             Y = max(1, Z // 2) #TODO: discuss with team members how to determine the value of Y
