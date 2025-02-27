@@ -103,19 +103,28 @@ class TrustService:
         if message:
             send_message("Message: {}".format(message), 'DEBUG TRUST')
             
-    def human_search_room(self, user_id, room_id):
+    def human_search_room(self, room_id):
         """
         Marks a room as searched by a human.
         """
+        if "rooms" not in self.perceived_state:
+            self.perceived_state["rooms"] = {}
+        if room_id not in self.perceived_state["rooms"]:
+            self.perceived_state["rooms"][room_id] = {}
+        if "searched" not in self.perceived_state["rooms"][room_id]:
+            self.perceived_state["rooms"][room_id]["searched"] = 0
         self.perceived_state["rooms"][room_id]["searched"] = 1
         
-    def robot_search_room(self, user_id, room_id):
+    def robot_search_room(self, room_id):
         """
         Marks a room as searched by a robot.
         """
-        if self.perceived_state["rooms"][room_id]["searched"] == 1:
-            # The room has been searched by the human before
-            pass
+        if "rooms" not in self.perceived_state:
+            self.perceived_state["rooms"] = {}
+        if room_id not in self.perceived_state["rooms"]:
+            self.perceived_state["rooms"][room_id] = {}
+        if "searched" not in self.perceived_state["rooms"][room_id]:
+            self.perceived_state["rooms"][room_id]["searched"] = 0
         self.perceived_state["rooms"][room_id]["searched"] = 2
         
     def was_searched(self, room_id):
@@ -129,3 +138,15 @@ class TrustService:
         if "searched" not in self.perceived_state["rooms"][room_id]:
             return 0
         return self.perceived_state["rooms"][room_id]["searched"]
+    
+    # def add_victim(self, room_id, victim):
+    #     """
+    #     Adds a victim to the room.
+    #     """
+    #     if "rooms" not in self.perceived_state:
+    #         self.perceived_state["rooms"] = {}
+    #     if room_id not in self.perceived_state["rooms"]:
+    #         self.perceived_state["rooms"][room_id] = {}
+    #     if "victims" not in self.perceived_state["rooms"][room_id]:
+    #         self.perceived_state["rooms"][room_id]["victims"] = []
+    #     self.perceived_state["rooms"][room_id]["victims"].append(victim)

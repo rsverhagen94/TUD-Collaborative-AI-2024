@@ -587,13 +587,13 @@ class BaselineAgent(ArtificialBrain):
                                     self._send_message('Found ' + vic + ' in ' + self._door[
                                         'room_name'] + ' because you told me ' + vic + ' was located here.',
                                                       'RescueBot')
-                                    # This should be 
                                     self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
                                     self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, 1)
                                     self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
                                         self._searched_rooms.append(self._door['room_name'])
+                                        self.trustService.robot_search_room(self._door['room_name'])
                                     # Do not continue searching the rest of the area but start planning to rescue the victim
                                     self._phase = Phase.FIND_NEXT_GOAL
 
@@ -642,6 +642,7 @@ class BaselineAgent(ArtificialBrain):
                 # Add the area to the list of searched areas
                 if self._door['room_name'] not in self._searched_rooms:
                     self._searched_rooms.append(self._door['room_name'])
+                    self.trustService.robot_search_room(self._door['room_name'])
                 # Make a plan to rescue a found critically injured victim if the human decides so
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue' and 'critical' in self._recent_vic:
@@ -847,14 +848,11 @@ class BaselineAgent(ArtificialBrain):
                     # 1 means the area was already searched by the human
                     # 2 means the area was already searched by the agent
                     searched = self.trustService.was_searched(area)
-                    switch(searched):
-                        case 0:
-                            self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
-                            break
-                        case 1: 
-                        case 2: 
-                            self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
-                            break
+                    if searched == 0:
+                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
+                        self.trustService.human_search_room(area)
+                    elif searched in [1, 2]:
+                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
                     
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
