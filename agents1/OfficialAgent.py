@@ -78,7 +78,7 @@ class BaselineAgent(ArtificialBrain):
         self._remainingZones = []
         self._trustBeliefs = None # only load the trust beliefs once
         self._re_searching = False # once it becomes true, competence penalty is applied when the agent found obstacles or victims
-
+        self._not_penalizable = [] # contains the areas searched by agent and where the agent found obstacles or victims
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
         self._state_tracker = StateTracker(agent_id=self.agent_id)
@@ -249,6 +249,7 @@ class BaselineAgent(ArtificialBrain):
                     self.received_messages = []
                     self.received_messages_content = []
                     self._re_searching = True
+                    self._not_penalizable = list(self._searched_rooms) # Reset to agent searched rooms
                     self._send_message('Going to re-search all areas.', 'RescueBot')
                     self._phase = Phase.FIND_NEXT_GOAL
                 # If there are still areas to search, define which one to search next
@@ -384,6 +385,14 @@ class BaselineAgent(ArtificialBrain):
                         objects.append(info)
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
+                            if self._re_searching:
+                                self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1
+                                self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
+                                    self._trustBeliefs[self._human_name]['search']['competence'], -1, 1)
+                                self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                                self._send_message('I found rock blocking ' + str(self._door['room_name']) + 'even though you already searched this area. I am adjusting my trust in your search competence.',
+                                                  'RescueBot')
+                                
                             self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + ' \n explore - areas searched: area ' + str(
@@ -423,6 +432,14 @@ class BaselineAgent(ArtificialBrain):
                         objects.append(info)
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
+                            if self._re_searching:
+                                self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1
+                                self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
+                                    self._trustBeliefs[self._human_name]['search']['competence'], -1, 1)
+                                self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                                self._send_message('I found tree blocking ' + str(self._door['room_name']) + 'even though you already searched this area. I am adjusting my trust in your search competence.',
+                                                  'RescueBot')
+                                
                             self._send_message('Found tree blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + '\n explore - areas searched: area ' + str(
@@ -460,6 +477,14 @@ class BaselineAgent(ArtificialBrain):
                         objects.append(info)
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
+                            if self._re_searching:
+                                self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1
+                                self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
+                                    self._trustBeliefs[self._human_name]['search']['competence'], -1, 1)
+                                self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                                self._send_message('I found stones blocking ' + str(self._door['room_name']) + 'even though you already searched this area. I am adjusting my trust in your search competence.',
+                                                  'RescueBot')
+                                
                             self._send_message('Found stones blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove together", "Remove alone", or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + ' \n explore - areas searched: area ' + str(
@@ -596,11 +621,12 @@ class BaselineAgent(ArtificialBrain):
                             # Identify injured victim in the area
                             if 'healthy' not in vic and vic not in self._found_victims:
                                 # Competence Update: Penalize human if bot finds victim during re-searching**
-                                if self._re_searching:
+                                if self._re_searching and self._door['room_name'] not in self._not_penalizable:
                                     self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1 #TODO: how much to penalize?
                                     self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
                                         self._trustBeliefs[self._human_name]['search']['competence'], -1, 1
                                     )
+                                    self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
 
                                     self._send_message(
                                         'I found ' + vic + ' in ' + self._door['room_name'] +
@@ -1005,7 +1031,7 @@ class BaselineAgent(ArtificialBrain):
                                    and room['room_name'] not in self._searched_rooms
                                    and room['room_name'] not in self._to_search]
         if self._remainingZones and len(unsearched_rooms) == 0:
-            X = len(self._searched_rooms_claimed_by_human)
+            X = len(self._searched_rooms_claimed_by_human) #TODO: if the human spam with agent searched areas from previous search, the areas are not counted as communications.
             Z = len(self._searched_rooms_by_agent)
             Y = max(1, Z // 2) #TODO: discuss with team members how to determine the value of Y
             # Adjust willingness proportionally
