@@ -77,6 +77,7 @@ class BaselineAgent(ArtificialBrain):
         self._moving = False
         self._remainingZones = []
         self._trustBeliefs = None # only load the trust beliefs once
+        self._re_searching = False # once it becomes true, competence penalty is applied when the agent found obstacles or victims
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -247,6 +248,7 @@ class BaselineAgent(ArtificialBrain):
                     self._send_messages = []
                     self.received_messages = []
                     self.received_messages_content = []
+                    self._re_searching = True
                     self._send_message('Going to re-search all areas.', 'RescueBot')
                     self._phase = Phase.FIND_NEXT_GOAL
                 # If there are still areas to search, define which one to search next
@@ -593,6 +595,19 @@ class BaselineAgent(ArtificialBrain):
 
                             # Identify injured victim in the area
                             if 'healthy' not in vic and vic not in self._found_victims:
+                                # Competence Update: Penalize human if bot finds victim during re-searching**
+                                if self._re_searching:
+                                    self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1 #TODO: how much to penalize?
+                                    self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
+                                        self._trustBeliefs[self._human_name]['search']['competence'], -1, 1
+                                    )
+
+                                    self._send_message(
+                                        'I found ' + vic + ' in ' + self._door['room_name'] +
+                                        ' even though you claimed it was searched. I am adjusting my trust in your search competence.',
+                                        'RescueBot'
+                                    )
+                                    
                                 self._recent_vic = vic
                                 # Add the victim and the location to the corresponding dictionary
                                 self._found_victims.append(vic)
@@ -638,6 +653,8 @@ class BaselineAgent(ArtificialBrain):
                     self._searched_rooms.append(self._door['room_name'])
                     # mark the area as searched by the agent
                     self._searched_rooms_by_agent.append(self._door['room_name'])
+                    
+                    
                 # Make a plan to rescue a found critically injured victim if the human decides so
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue' and 'critical' in self._recent_vic:
