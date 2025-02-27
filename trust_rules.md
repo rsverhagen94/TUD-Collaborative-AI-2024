@@ -12,3 +12,8 @@ The trust will be lowered in the following phases/situations:
         - if human tells agent a victim is in a room and the victim was actually there, the rescue willingness and search competence + willingness go up
     - TAKE_VICTIM
         - when carrying together, rescue willingess + competence go up
+
+When messages get received by the agent:
+    - If a "Search:" message received:
+        - if the area has not been searched yet by anybody, increase search willingness
+        - if area was already searched by the robot or the human, decrease search competence
