@@ -903,7 +903,7 @@ class BaselineAgent(ArtificialBrain):
                         collectVic = ' '.join(msg.split()[1:5])
                     loc = 'area ' + msg.split()[-1]
                     
-                    self.trust_service.trigger_trust_change(TrustBeliefs.RECUE_COMPETENCE, self._human_name, self._send_message, 1)
+                    self.trust_service.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name, self._send_message, 1)
                     
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
