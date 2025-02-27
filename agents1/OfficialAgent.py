@@ -605,6 +605,14 @@ class BaselineAgent(ArtificialBrain):
                                 self._found_victim_logs[vic] = {'location': info['location'],
                                                                 'room': self._door['room_name'],
                                                                 'obj_id': info['obj_id']}
+                                
+                                perceived_state = self.trustService.victims(self._door['room_name'])
+                                for victim in perceived_state:
+                                    if victim["victim"] != vic:
+                                        continue
+                                    if victim["rescued"]:
+                                        self.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name, self._send_message, -1)
+                            
                                 # Communicate which victim the agent found and ask the human whether to rescue the victim now or at a later stage
                                 if 'mild' in vic and self._answered == False and not self._waiting:
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue together", "Rescue alone", or "Continue" searching. \n \n \
@@ -614,6 +622,7 @@ class BaselineAgent(ArtificialBrain):
                                         clock - extra time when rescuing alone: 15 seconds \n afstand - distance between us: ' + self._distance_human,
                                                       'RescueBot')
                                     self._waiting = True
+                                    
 
                                 if 'critical' in vic and self._answered == False and not self._waiting:
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue" or "Continue" searching. \n\n \
