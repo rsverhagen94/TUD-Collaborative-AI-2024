@@ -1,5 +1,8 @@
 import copy
+import datetime
 import sys, random, enum, ast, time, csv
+
+import current
 import numpy as np
 from matrx import grid_world
 from brains1.ArtificialBrain import ArtificialBrain
@@ -80,6 +83,8 @@ class BaselineAgent(ArtificialBrain):
         self._processed_messages = []
         self._rooms = ['area 1', 'area 2', 'area 3', 'area 4', 'area 5', 'area 6', 'area 7', 'area 8', 'area 9', 'area 10', 'area 11', 'area 12', 'area 13', 'area 14']
         self._allegedly_removed_obstacles = []
+        self._initial_waiting_time = None
+        self._ask_human = None
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -409,6 +414,8 @@ class BaselineAgent(ArtificialBrain):
                         # Wait for the human to help removing the obstacle and remove the obstacle together
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
+                            self._processed_messages.append(f"Remove {str(self._door['room_name'])}")
+                            self._initial_waiting_time = datetime.datetime.now()
                             if not self._remove:
                                 self._answered = True
                             # Tell the human to come over and be idle untill human arrives
@@ -421,6 +428,35 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('Lets remove rock blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
+                        if self._processed_messages and self._processed_messages[-1] == f"Remove {str(self._door['room_name'])}" and self._waiting:
+                            time_passed = (datetime.datetime.now() - self._initial_waiting_time).total_seconds()
+                            threshold = 0
+                            if self._distance_human == 'far':
+                                threshold = 14
+                            elif self._distance_human == 'close':
+                                threshold = 11
+
+                            if time_passed > threshold:
+                                willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
+                                instances = trustBeliefs[self._human_name]['remove_objects']['instances']
+                                willingness = ((willingness * instances) + (willingness - 0.01)) / (instances + 1)
+                                trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
+                                trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
+                                # Restrict the willingness belief to a range of -1 to 1
+                                trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(
+                                    trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
+                                    1)
+                                self.save_to_file(trustBeliefs)
+                                willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
+                                decision_threshold = (1 + willingness) / 2
+                                if random.uniform(0, 1) > decision_threshold:
+                                    self._answered = True
+                                    self._waiting = False
+                                    # Add area to the to do list
+                                    self._to_search.append(self._door['room_name'])
+                                    self._phase = Phase.FIND_NEXT_GOAL
+                                else:
+                                    return None, {}
                         # Remain idle untill the human communicates what to do with the identified obstacle 
                         else:
                             return None, {}
@@ -465,11 +501,12 @@ class BaselineAgent(ArtificialBrain):
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'stone' in \
                             info['obj_id']:
                         willingness = self._trustBeliefs[self._human_name]['remove_objects']['willingness']
-                        # threshold = (1+willingness)/2
-                        # if self._distance_human == 'far':
-                        #     threshold = max(0, threshold-0.1)
-                        threshold = 1
-                        if random.uniform(0, 1)<threshold:
+                        threshold = (1+willingness)/2
+                        if self._distance_human == 'far':
+                            threshold = max(0, threshold-0.1)
+                        if self._ask_human is None:
+                            self._ask_human = random.uniform(0, 1) < threshold
+                        if self._ask_human is not None and self._ask_human:
                             objects.append(info)
                             # Communicate which obstacle is blocking the entrance
                             if self._answered == False and not self._remove and not self._waiting:
@@ -487,21 +524,26 @@ class BaselineAgent(ArtificialBrain):
                                 self._waiting = False
                                 # Add area to the to do list
                                 self._to_search.append(self._door['room_name'])
+                                self._ask_human = None
                                 self._phase = Phase.FIND_NEXT_GOAL
                             # Remove the obstacle alone if the human decides so
                             if self.received_messages_content and self.received_messages_content[
                                 -1] == 'Remove alone' and not self._remove:
-                                print("Received messages: ", self.received_messages_content)
                                 self._answered = True
                                 self._waiting = False
                                 self._send_message('Removing stones blocking ' + str(self._door['room_name']) + '.',
                                                   'RescueBot')
                                 self._phase = Phase.ENTER_ROOM
                                 self._remove = False
+                                self._ask_human = None
                                 return RemoveObject.__name__, {'object_id': info['obj_id']}
                             # Remove the obstacle together if the human decides so
                             if self.received_messages_content and self.received_messages_content[
                                 -1] == 'Remove together' or self._remove:
+                                self._processed_messages.append(f"Remove together {str(self._door['room_name'])}")
+                                self._initial_waiting_time = datetime.datetime.now()
+                                print("Waiting time: ", self._initial_waiting_time)
+                                print("Now ", datetime.datetime.now())
                                 if not self._remove:
                                     self._answered = True
                                 # Tell the human to come over and be idle untill human arrives
@@ -509,19 +551,58 @@ class BaselineAgent(ArtificialBrain):
                                     self._send_message(
                                         'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                         'RescueBot')
+                                    self._ask_human = None
                                     return None, {}
                                 # Tell the human to remove the obstacle when he/she arrives
                                 if state[{'is_human_agent': True}]:
                                     self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                       'RescueBot')
+                                    self._ask_human = None
                                     return None, {}
+                            if self._processed_messages and self._processed_messages[
+                                -1] == f"Remove together {str(self._door['room_name'])}" and self._waiting:
+                                time_passed = (datetime.datetime.now() - self._initial_waiting_time).total_seconds()
+                                threshold = 0
+                                if self._distance_human == 'far':
+                                    threshold = 12
+                                elif self._distance_human == 'close':
+                                    threshold = 9
+                                if time_passed > threshold:
+                                    willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
+                                    instances = trustBeliefs[self._human_name]['remove_objects']['instances']
+                                    willingness = ((willingness * instances) + (
+                                                willingness - 0.01)) / (
+                                                              instances + 1)
+                                    trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
+                                    trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
+                                    # Restrict the willingness belief to a range of -1 to 1
+                                    trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(
+                                        trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
+                                        1)
+                                    self.save_to_file(trustBeliefs)
+                                    willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
+                                    decision_threshold = (1 + willingness) / 2
+                                    if random.uniform(0, 1) > decision_threshold:
+                                        self._answered = True
+                                        self._waiting = False
+                                        print(datetime.datetime.now())
+                                        self._send_message(
+                                            'Removing stones blocking ' + str(self._door['room_name']) + '.',
+                                            'RescueBot')
+                                        self._phase = Phase.ENTER_ROOM
+                                        self._remove = False
+                                        self._ask_human = None
+                                        return RemoveObject.__name__, {'object_id': info['obj_id']}
+                                    else:
+                                        return None, {}
                             # Remain idle until the human communicates what to do with the identified obstacle
                             else:
                                 return None, {}
-                        else:
+                        elif not self._ask_human:
                             self._send_message('Removing stones blocking ' + str(self._door['room_name']) + '.',
                                                'RescueBot')
                             self._phase = Phase.ENTER_ROOM
+                            self._ask_human = None
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
                 # If no obstacles are blocking the entrance, enter the area
                 if len(objects) == 0:
@@ -826,10 +907,11 @@ class BaselineAgent(ArtificialBrain):
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(self._folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'task', 'competence', 'willingness', 'instances'])
+            csv_writer.writerow(['name', 'task', 'competence', 'willingness', 'instances', 'competence_instances'])
             for task in self._tasks:
                 csv_writer.writerow([self._human_name, task, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name][task]['willingness'], trustBeliefs[self._human_name][task]['instances']])
+                                 trustBeliefs[self._human_name][task]['willingness'], trustBeliefs[self._human_name][task]['instances'],
+                                     trustBeliefs[self._human_name]['competence_instances']])
 
     def _get_drop_zones(self, state):
         '''
@@ -961,7 +1043,6 @@ class BaselineAgent(ArtificialBrain):
                     if trustfile_header == []:
                         trustfile_header = row
                         continue
-                    print("Row: ", row)
                     # Retrieve trust values
                     if row and row[0] == self._human_name:
                         name = row[0]
@@ -969,15 +1050,19 @@ class BaselineAgent(ArtificialBrain):
                         competence = float(row[2])
                         willingness = float(row[3])
                         instances = int(row[4])
+                        competence_instances = int(row[5])
                         self._trustBeliefs[name]['competence'] = competence
+                        self._trustBeliefs[name]['competence_instances'] = competence_instances
                         self._trustBeliefs[name][task] = {'willingness': willingness, 'instances': instances}
                     # Initialize default trust values
                     if row and row[0] != self._human_name:
                         competence = default
                         willingness = default
                         instances = 0
+                        competence_instances = 0
                         self._trustBeliefs[self._human_name] = {}
                         self._trustBeliefs[self._human_name]['competence'] = competence
+                        self._trustBeliefs[self._human_name]['competence_instances'] = competence_instances
                         for task in self._tasks:
                             self._trustBeliefs[self._human_name][task] = {'willingness': willingness, 'instances': instances}
             self._first_tick = False
@@ -995,7 +1080,9 @@ class BaselineAgent(ArtificialBrain):
                     competence = float(row[2])
                     willingness = float(row[3])
                     instances = int(row[4])
+                    competence_instances = int(row[5])
                     self._trustBeliefs[name]['competence'] = competence
+                    self._trustBeliefs[name]['competence_instances'] = competence_instances
                     self._trustBeliefs[name][task] = {'willingness': willingness, 'instances': instances}
         return self._trustBeliefs
 
@@ -1005,7 +1092,6 @@ class BaselineAgent(ArtificialBrain):
         '''
         # Update the trust value based on for example the received messages
         for message in receivedMessages:
-            total_instances = sum(trustBeliefs[self._human_name][task]['instances'] for task in self._tasks)
             if message in self._processed_messages:
                 continue
             # Increase agent trust in a team member that rescued a victim
@@ -1013,11 +1099,13 @@ class BaselineAgent(ArtificialBrain):
                 competence = trustBeliefs[self._human_name]['competence']
                 willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
                 instances = trustBeliefs[self._human_name]['remove_objects']['instances']
-                competence = ((competence*total_instances) + (competence+0.1))/(total_instances+1)
+                competence_instances = trustBeliefs[self._human_name]['competence_instances']
+                competence = ((competence*competence_instances) + (competence+0.1))/(competence_instances+1)
                 willingness = ((willingness*instances) + (willingness+0.1))/(instances+1)
                 trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
                 trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
                 trustBeliefs[self._human_name]['competence'] = competence
+                trustBeliefs[self._human_name]['competence_instances'] = competence_instances
                 # Restrict the competence belief to a range of -1 to 1
                 trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
                                                                        1)
@@ -1059,8 +1147,9 @@ class BaselineAgent(ArtificialBrain):
                         is_stone = True
                 if is_stone:
                     competence = trustBeliefs[self._human_name]['competence']
-                    competence = ((competence*total_instances) + (competence-0.03))/(total_instances+1)
-                    trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
+                    competence_instances = trustBeliefs[self._human_name]['competence_instances']
+                    competence = ((competence*competence_instances) + (competence-0.03))/(competence_instances+1)
+                    trustBeliefs[self._human_name]['competence_instances'] += 1
                     trustBeliefs[self._human_name]['competence'] = competence
                     trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
                                                                            1)
