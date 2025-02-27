@@ -846,6 +846,7 @@ class BaselineAgent(ArtificialBrain):
             for member in teamMembers:
                 if mssg.from_id == member:
                     receivedMessages[member].append(mssg.content)
+        self.received_messages = []
         # Check the content of the received messages
         for mssgs in receivedMessages.values():
             for msg in mssgs:
