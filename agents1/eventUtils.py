@@ -1,53 +1,19 @@
 import enum
+from abc import abstractmethod
 
-from agents1.OfficialAgent import BaselineAgent
+# Class to manage which prompt was last encountered by the bot
+class PromptSession:
+    def __init__(self, bot, ttl=100):
+        self.bot = bot
+        self.ttl = ttl
 
-# Is this a good idea, having this definition outside the class scope?
-default_timer = 100
+    @abstractmethod
+    def wait(self): pass
+    @abstractmethod
+    def on_timeout(self): pass
 
-class RemoveObstacleEvents:
-    @staticmethod
-    def removeStoneTogether(bot):
-        print("Remove Stone Together heard")
-        # Make the bot wait
-        bot._ticks_waiting = default_timer
-        # Udpate Values
-        RemoveObstacleEvents.increment_values("remove_stone", 0.1, 0, bot)
-        bot._waiting_human = True
-
-    @staticmethod
-    def removeStoneAlone(bot):
-        print("Remove Stone Alone heard")
-        RemoveObstacleEvents.increment_values("remove_stone", 0.1, 0, bot)
-
-    @staticmethod
-    def continueStoneEvent(bot):
-        print("Continue Stone heard")
-        RemoveObstacleEvents.increment_values("remove_stone", -0.1, 0, bot)
-
-    @staticmethod
-    def waitStoneEvent(bot):
-        print("Wait Stone triggered, ticks waiting", bot._ticks_waiting)
-        # TODO: how do we know which event we are waiting for? Ans: The bot will only wait in the case of Remove Together
-
-        if bot._waiting_human:
-            # A timeout has happened
-            if bot._ticks_waiting <= 0:
-                bot._ticks_waiting = 0 # Clip ticks_waiting to prevent errors
-                print("Timeout!")
-                RemoveObstacleEvents.increment_values("remove_stone", -0.1, 0, bot)
-            else:
-                print("waiting")
-                bot._ticks_waiting -= 1
-
-    @staticmethod
-    def completeRemoveTogetherEvent(bot):
-        if bot._waiting_human:
-            bot._ticks_waiting = 0
-            bot._waiting_human = False
-            RemoveObstacleEvents.increment_values("remove_stone", 0.2, 0.1, bot)
-            print("Remove stone together completed, adding")
-
+    def delete_self(self):
+        self.bot._current_prompt = None
 
     @staticmethod
     def increment_values(task, willingness, competence, bot):
@@ -56,4 +22,68 @@ class RemoveObstacleEvents:
         # bot._competence += competence
         pass
 
+class StoneObstacleSession(PromptSession):
+    class StoneObstaclePhase(enum.Enum):
+        WAITING_RESPONSE = 0
+        WAITING_HUMAN = 1
 
+    def __init__(self, bot, ttl=-1):
+        super().__init__(bot, ttl)
+        self.currPhase = self.StoneObstaclePhase.WAITING_RESPONSE
+
+    def removeAlone(self):
+        print("Removing alone")
+        self.increment_values("remove_stone", 0.1, 0, self.bot)
+        self.delete_self()
+
+    def continueStone(self):
+        print("Continue Stone heard")
+        self.increment_values("remove_stone", -0.1, 0, self.bot)
+        self.delete_self()
+
+    def removeTogether(self, ttl=100):
+        print("Remove Together heard")
+        self.increment_values("remove_stone", 0.1, 0, self.bot)
+        # Wait for the human
+        self.currPhase = self.StoneObstaclePhase.WAITING_HUMAN
+        # Reset ttl
+        self.ttl = ttl
+
+
+    def completeRemoveTogether(self):
+        self.increment_values("remove_stone", 0.1, 0.2, self.bot)
+        self.delete_self()
+
+    def wait(self):
+        self.ttl -= 1
+        if self.ttl % 5 == 0 and self.ttl > 0:
+            print("ttl:", self.ttl)
+        if self.ttl == 0:
+            self.on_timeout()
+
+    def on_timeout(self):
+        # Figure out what to do depending on the current phase
+        if self.currPhase == self.StoneObstaclePhase.WAITING_RESPONSE:
+            print("Timed out waiting for response!")
+            # TODO: penalize?
+            self.increment_values("remove_stone", -0.1, 0, self.bot)
+
+            self.bot._answered = True
+            self.bot._waiting = False
+            # Add area to the to do list
+            self.bot._to_search.append(self.bot._door['room_name'])
+
+            # TODO: is this a good idea?!
+            from agents1.OfficialAgent import Phase
+            self.bot._phase = Phase.FIND_NEXT_GOAL
+
+        elif self.currPhase == self.StoneObstaclePhase.WAITING_HUMAN:
+            print("Timed out waiting for human!")
+            self.increment_values("remove_stone", -0.1, 0, self.bot)
+            self.delete_self()
+
+        else:
+            #How did you even get here?!
+            pass
+
+#TODO: Implement Confidence Level
