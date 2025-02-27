@@ -238,7 +238,9 @@ class BaselineAgent(ArtificialBrain):
                 # If all areas have been searched but the task is not finished, start searching areas again
                 if self._remainingZones and len(unsearched_rooms) == 0:
                     self._to_search = []
-                    self._searched_rooms = list(self._searched_rooms_by_agent) # Reset the searched rooms
+                    self._searched_rooms = list(self._searched_rooms_by_agent) # Reset the searched rooms(only includes the ones searched by the agent)
+                    self._searched_rooms_claimed_by_human = [] # Reset the searched rooms claimed by the human
+                    self._searched_rooms_by_agent = [] # Reset the searched rooms by the agent, only store the new ones in the next searching round
                     self._send_messages = []
                     self.received_messages = []
                     self.received_messages_content = []
@@ -969,12 +971,29 @@ class BaselineAgent(ArtificialBrain):
         '''
         # Update the trust value based on for example the received messages
         for message in receivedMessages:
-            # Increase agent trust in a team member that rescued a victim
-            if 'Collect' in message:
-                trustBeliefs[self._human_name]['search']['competence'] += 0.10 #TODO: change 'search' to the task the human is performing
-                # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['search']['competence'] = np.clip(trustBeliefs[self._human_name]['search']['competence'], -1,
-                                                                       1)
+            # # Increase agent trust in a team member that rescued a victim
+            # if 'Collect' in message:
+            #     trustBeliefs[self._human_name]['search']['competence'] += 0.10 #TODO: change 'search' to the task the human is performing
+            #     # Restrict the competence belief to a range of -1 to 1
+            #     trustBeliefs[self._human_name]['search']['competence'] = np.clip(trustBeliefs[self._human_name]['search']['competence'], -1,
+            #                                                            1)
+                
+        # Increase willingness of search task based on the received messages when all areas have been claimed as searched
+        if len(self._searched_rooms) == 14:
+            X = len(self._searched_rooms_claimed_by_human)
+            Z = len(self._searched_rooms_by_agent)
+            Y = max(1, Z // 2) #TODO: discuss with team members how to determine the value of Y
+            # Adjust willingness proportionally
+            if X > Y:
+                trustBeliefs[self._human_name]['search']['willingness'] += 0.10 * (X - Y) #TODO: introduce confidence lvl and tune this
+            elif X < Y:
+                trustBeliefs[self._human_name]['search']['willingness'] -= 0.10 * (Y - X) #TODO: introduce confidence lvl and tune this
+
+            # Clip willingness between -1 and 1
+            trustBeliefs[self._human_name]['search']['willingness'] = np.clip(
+                trustBeliefs[self._human_name]['search']['willingness'], -1, 1
+            )
+
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
