@@ -113,7 +113,7 @@ class BaselineAgent(ArtificialBrain):
             self._trustBeliefs = self._loadBelief(self._team_members, self._folder)
         
         
-        # Testing _trustBelief() by incrementing Competence of Search by 0.10 when Human engages search
+        # Testing _trustBelief() by incrementing Competence of Search by 0.10
         # Remove when functionality is confirmed
         ### 
         # for message in self._received_messages:
