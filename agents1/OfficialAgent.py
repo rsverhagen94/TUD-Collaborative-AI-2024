@@ -1,5 +1,6 @@
 import sys, random, enum, ast, time, csv
 import numpy as np
+import random
 from trust import TrustService, TrustBeliefs
 from matrx import grid_world
 from brains1.ArtificialBrain import ArtificialBrain
@@ -663,6 +664,11 @@ class BaselineAgent(ArtificialBrain):
                 # Make a plan to rescue a found mildly injured victim together if the human decides so
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue together' and 'mild' in self._recent_vic:
+                # Perform competence and willingness check
+                competence_pass = self._passesCompetenceCheck()
+                willingness_pass = self._passesWillingnessCheck()
+
+                if competence_pass and willingness_pass:
                     self._rescue = 'together'
                     self._answered = True
                     self._waiting = False
@@ -676,6 +682,17 @@ class BaselineAgent(ArtificialBrain):
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                             self._recent_vic) + '.', 'RescueBot')
                     self._goal_vic = self._recent_vic
+                    self._recent_vic = None
+                    self._phase = Phase.PLAN_PATH_TO_VICTIM
+                else:  
+                    self._send_message("Sorry, I don't trust you! I decided to rescue alone!", 'RescueBot')
+                    self._send_message('Picking up ' + self._recent_vic + ' in ' + self._door['room_name'] + '.',
+                                    'RescueBot')
+                    self._rescue = 'alone'
+                    self._answered = True
+                    self._waiting = False
+                    self._goal_vic = self._recent_vic
+                    self._goal_loc = self._remaining[self._goal_vic]
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
                 # Make a plan to rescue the mildly injured victim alone if the human decides so, and communicate this to the human
@@ -1056,3 +1073,27 @@ class BaselineAgent(ArtificialBrain):
             else:
                 locs.append((x[i], max(y)))
         return locs
+    
+    def _passesCompetenceCheck(self):
+        """
+        Determines if the human passes the competence check based on their recorded competence trust belief.
+        The probability of passing is determined by the competence score.
+        """
+        if not hasattr(self, "trust_service") or not hasattr(self, "_human_name"):
+            return False  # Safety check to ensure trust service and human name are available
+
+        competence_value = self.trust_service.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_COMPETENCE, 0.5)
+
+        return random.random() < competence_value
+
+    def _passesWillingnessCheck(self):
+        """
+        Determines if the human passes the willingness check based on their recorded willingness trust belief.
+        The probability of passing is determined by the willingness score.
+        """
+        if not hasattr(self, "trust_service") or not hasattr(self, "_human_name"):
+            return False  # Safety check to ensure trust service and human name are available
+
+        willingness_value = self.trust_service.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.5)
+
+        return random.random() < willingness_value
