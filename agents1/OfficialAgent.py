@@ -612,6 +612,12 @@ class BaselineAgent(ArtificialBrain):
                                                       'RescueBot')
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
+                                        if self._re_searching and self._door['room_name'] not in self._not_penalizable:
+                                            self._trustBeliefs[self._human_name]['search']['competence'] += 0.1 #TODO: how much to penalize?
+                                            self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
+                                                self._trustBeliefs[self._human_name]['search']['competence'], -1, 1
+                                            )
+                                            self._send_message('Well done! In the previous searching round you reported this room is searched, and the victim is reported as found, I am adjusting my trust in your search competence.')
                                         self._searched_rooms.append(self._door['room_name'])
                                         # mark the area as searched by the agent
                                         self._searched_rooms_by_agent.append(self._door['room_name'])
@@ -676,6 +682,12 @@ class BaselineAgent(ArtificialBrain):
                     self.received_messages_content = []
                 # Add the area to the list of searched areas
                 if self._door['room_name'] not in self._searched_rooms:
+                    if self._re_searching and self._door['room_name'] not in self._not_penalizable:
+                        self._trustBeliefs[self._human_name]['search']['competence'] += 0.1 #TODO: how much to penalize?
+                        self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
+                            self._trustBeliefs[self._human_name]['search']['competence'], -1, 1
+                        )
+                        self._send_message('Well done! In the previous searching round you reported this room is searched, and I verified it now! I am adjusting my trust in your search competence.')
                     self._searched_rooms.append(self._door['room_name'])
                     # mark the area as searched by the agent
                     self._searched_rooms_by_agent.append(self._door['room_name'])
