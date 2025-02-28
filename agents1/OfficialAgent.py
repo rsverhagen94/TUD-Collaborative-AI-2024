@@ -993,7 +993,7 @@ class BaselineAgent(ArtificialBrain):
             print('first: ' + current_msg)
             if next_msg != None:
                 if 'found mildly injured' in current_msg and 'close' in current_msg and 'rescue together' in next_msg:
-                    trustBeliefs['rescue']['willingness'] += 0.1
+                    trustBeliefs['rescue']['willingness'] = update_trust(current, 0.15) 
                     for victim in victim_types:
                         if victim in current_msg and victim in self._collected_victims:
                             trustBeliefs['rescue']['competence'] += 0.1
@@ -1006,7 +1006,7 @@ class BaselineAgent(ArtificialBrain):
                         if victim in current_msg and victim in self._collected_victims:
                             trustBeliefs['rescue']['competence'] += 0.2
                 if 'found critically injured' in current_msg and 'close' in current_msg and 'continue' in next_msg:
-                    trustBeliefs['rescue']['willingness'] -= 0.1
+                    trustBeliefs['rescue']['willingness'] = update_trust(trustBeliefs['rescue']['willingness'], -0.2, )
 
                 if 'found rock' in current_msg and 'close' in current_msg and 'remove' in next_msg:
                     trustBeliefs['destroy obstacles']['willingness'] += 0.1
@@ -1035,7 +1035,7 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs['destroy obstacles']['willingness'] -= 0.1
 
                 if 'to help you remove an obstacle' in current_msg and 'removing tree' in next_msg:
-                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    trustBeliefs['destroy obstacles']['willingness'] = 
                     trustBeliefs['destroy obstacles']['competence'] += 0.1
                 
                 if 'collect' in current_msg:
@@ -1047,7 +1047,22 @@ class BaselineAgent(ArtificialBrain):
                 if 'i searched the whole area without finding' in current_msg:
                     trustBeliefs['search']['competence'] -= 0.5
                 
-                print('next: ' + next_msg)
+                if 'waited' in current_msg and "didn't show up" in current_msg:
+                    seconds_match = re.search(r'(\d+)\s*seconds', current_msg)
+                    if seconds_match:
+                        seconds = int(seconds_match.group(1))
+                        seconds = min(seconds, 30)
+                        # For 30 seconds, impact is -0.3; for 20 seconds, impact is -0.2, etc.
+                        impact = -(seconds / 30) * 0.3
+                        trustBeliefs['rescue']['willingness'] += impact
+                
+                if 'human said he searched room' in current_msg:
+                    if 'critically injured' in current_msg:
+                        trustBeliefs['search']['competence'] -= 0.4
+                    elif 'mildly injured' in current_msg:
+                        trustBeliefs['search']['competence'] -= 0.3
+                    elif 'obstacle' in current_msg:
+                        trustBeliefs['search']['competence'] -= 0.3
 
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
             json.dump(trustBeliefs, file, indent=4)
