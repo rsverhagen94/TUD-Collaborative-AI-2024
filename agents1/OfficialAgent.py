@@ -15,7 +15,8 @@ from matrx.messages.message import Message
 from matrx.messages.message_manager import MessageManager
 from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, DropObjectTogether, CarryObject, Drop
 
-from agents1.eventUtils import *
+from agents1.sessions.stoneObstacle import StoneObstacleSession
+from agents1.eventUtils import PromptSession
 
 class Phase(enum.Enum):
     INTRO = 1,
@@ -522,8 +523,8 @@ class BaselineAgent(ArtificialBrain):
                             return None, {}
                 # If no obstacles are blocking the entrance, enter the area
                 if len(objects) == 0:
-                    # TODO: Remove this and create an event trigger when the stone is removed by the human and the bot
                     if isinstance(self._current_prompt, StoneObstacleSession):
+                        # If the current prompt is a stone obstacle session, then a stone obstacle must've been removed
                         self._current_prompt.completeRemoveTogether()
                     self._answered = False
                     self._remove = False
