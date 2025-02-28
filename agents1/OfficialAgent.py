@@ -115,11 +115,11 @@ class BaselineAgent(ArtificialBrain):
         
         # Testing _trustBelief() by incrementing Competence of Search by 0.10 when Human engages search
         # Remove when functionality is confirmed
-        ###
-        for message in self._received_messages:
-            if 'Collect' in message: 
-                self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", 0.10)
-                print(self._trustBeliefs[self._human_name]['search']['competence'])
+        ### 
+        # for message in self._received_messages:
+        #     if 'Collect' in message:
+        #         self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", 0.10)
+        #         print(self._trustBeliefs[self._human_name]['search']['competence'])
         ###
 
         # Check whether human is close in distance
