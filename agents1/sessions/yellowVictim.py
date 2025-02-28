@@ -2,36 +2,40 @@ import enum
 from agents1.eventUtils import PromptSession
 
 
-class StoneObstacleSession(PromptSession):
-    class StoneObstaclePhase(enum.Enum):
+class YellowVictimSession(PromptSession):
+    class YellowVictimPhase(enum.Enum):
         WAITING_RESPONSE = 0
         WAITING_HUMAN = 1
 
     def __init__(self, bot, ttl=-1):
         super().__init__(bot, ttl)
-        self.currPhase = self.StoneObstaclePhase.WAITING_RESPONSE
+        self.currPhase = self.YellowVictimPhase.WAITING_RESPONSE
 
-    def continue_stone(self):
-        print("Continue Stone heard")
-        self.increment_values("remove_stone", -0.1, 0, self.bot)
+    def robot_continue_rescue(self):
+        print("Robot Continue Rescue heard")
+        self.increment_values("rescue_yellow", -0.1, 0, self.bot)
+        self.delete_self()
+        
+    def robot_rescue_alone(self):
+        print("Robot Rescue Alone heard")
+        self.increment_values("rescue_yellow", 0.1, 0, self.bot)
         self.delete_self()
 
-    def remove_alone(self):
-        print("Remove Alone heard")
-        self.increment_values("remove_stone", 0.1, 0, self.bot)
-        self.delete_self()
-
-    def remove_together(self, ttl=100):
-        print("Remove Together heard")
-        self.increment_values("remove_stone", 0.15, 0, self.bot)
+    def robot_remove_together(self, ttl=100):
+        print("Robot Rescue Together heard")
+        self.increment_values("rescue_yellow", 0.15, 0, self.bot)
         # Wait for the human
-        self.currPhase = self.StoneObstaclePhase.WAITING_HUMAN
+        self.currPhase = self.YellowVictimPhase.WAITING_HUMAN
         # Reset ttl
         self.ttl = ttl
+        
+        
+    def human_request_together(self):
+        
 
-    def complete_remove_together(self):
-        print("Completed removal!")
-        self.increment_values("remove_stone", 0.1, 0.2, self.bot)
+    def complete_rescue_together(self):
+        print("Completed rescue!")
+        self.increment_values("rescue_yellow", 0.1, 0.2, self.bot)
         self.delete_self()
 
     def wait(self):
@@ -45,9 +49,9 @@ class StoneObstacleSession(PromptSession):
 
     def on_timeout(self):
         # Figure out what to do depending on the current phase
-        if self.currPhase == self.StoneObstaclePhase.WAITING_RESPONSE:
+        if self.currPhase == self.YellowVictimPhase.WAITING_RESPONSE:
             print("Timed out waiting for response!")
-            self.increment_values("remove_stone", -0.15, -0.15, self.bot)
+            self.increment_values("rescue_yellow", -0.15, -0.15, self.bot)
 
             self.bot._answered = True
             self.bot._waiting = False
@@ -58,9 +62,9 @@ class StoneObstacleSession(PromptSession):
             self.bot._phase = Phase.FIND_NEXT_GOAL
             self.delete_self()
 
-        elif self.currPhase == self.StoneObstaclePhase.WAITING_HUMAN:
+        elif self.currPhase == self.YellowVictimPhase.WAITING_HUMAN:
             print("Timed out waiting for human!")
-            self.increment_values("remove_stone", -0.1, 0, self.bot)
+            self.increment_values("rescue_yellow", -0.1, 0, self.bot)
 
             self.bot._answered = True
             self.bot._waiting = False

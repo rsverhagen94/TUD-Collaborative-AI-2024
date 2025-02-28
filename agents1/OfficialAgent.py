@@ -121,17 +121,6 @@ class BaselineAgent(ArtificialBrain):
         # Initialize and update trust beliefs for team members
         if self._trustBeliefs == None:
             self._trustBeliefs = self._loadBelief(self._team_members, self._folder)
-        
-        
-        # Testing _trustBelief() by incrementing Competence of Search by 0.10
-        # Remove when functionality is confirmed
-        ### 
-        # for message in self._received_messages:
-        #     if 'Collect' in message:
-        #         self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", 0.10)
-        #         print(self._trustBeliefs[self._human_name]['search']['competence'])
-        ###
-
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
@@ -534,7 +523,7 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._waiting = True
 
-                            self._current_prompt = StoneObstacleSession(self)
+                            self._current_prompt = StoneObstacleSession(self, 100)
 
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
@@ -1075,15 +1064,9 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-<<<<<<< HEAD
-    
-    
-    def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
-=======
 
     
     def _trustBelief(self, members, trustBeliefs, folder, task, belief, increment):
->>>>>>> b2c1d969e1ff6278e822ab3087fb35bcee11f880
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
         '''
@@ -1104,30 +1087,6 @@ class BaselineAgent(ArtificialBrain):
             ])
 
         return trustBeliefs
-    
-    # def _trustBelief(self, members, trustBeliefs, folder, task, belief, increment):
-    #     '''
-    #     Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
-    #     '''
-    #     # Update the trust value
-    #     trustBeliefs[self._human_name][task][belief] += increment 
-    #     # Restrict the belief value to a range of -1 to 1
-    #     trustBeliefs[self._human_name][task][belief] = np.clip(trustBeliefs[self._human_name][task][belief], -1, 1)
-
-    #     # Save current trust belief values to a CSV file for logging
-    #     with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
-    #         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    #         csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
-    #         csv_writer.writerow([
-    #             self._human_name, 
-    #             task, 
-    #             trustBeliefs[self._human_name][task]['competence'],
-    #             trustBeliefs[self._human_name][task]['willingness']
-    #         ])
-
-    #     return trustBeliefs
-
-   
    
     def _send_message(self, mssg, sender):
         '''
