@@ -1052,9 +1052,14 @@ class BaselineAgent(ArtificialBrain):
                     if seconds_match:
                         seconds = int(seconds_match.group(1))
                         seconds = min(seconds, 30)
-                        # For 30 seconds, impact is -0.3; for 20 seconds, impact is -0.2, etc.
+                        # For 30 seconds, impact is -0.3; scale linearly (e.g. 20 seconds gives -0.2).
                         impact = -(seconds / 30) * 0.3
-                        trustBeliefs['rescue']['willingness'] += impact
+                        if 'search rooms' in current_msg:
+                            trustBeliefs['search']['competence'] += impact
+                        elif 'destroy obstacles' in current_msg:
+                            trustBeliefs['destroy obstacles']['willingness'] += impact
+                        elif 'rescue' in current_msg:
+                            trustBeliefs['rescue']['willingness'] += impact
                 
                 if 'human said he searched room' in current_msg:
                     if 'critically injured' in current_msg:
