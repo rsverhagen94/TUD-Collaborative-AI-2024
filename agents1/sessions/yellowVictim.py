@@ -30,7 +30,15 @@ class YellowVictimSession(PromptSession):
         self.ttl = ttl
         
         
-    def human_request_together(self):
+    def human_found_alone(self):
+        pass
+    def human_pickup_alone(self):
+        # higher competencec than below, because he can pickup alone
+        pass
+    def human_pickup_together(self):
+        pass
+        
+    
         
 
     def complete_rescue_together(self):
