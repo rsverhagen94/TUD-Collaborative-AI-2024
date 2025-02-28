@@ -107,6 +107,11 @@ class BaselineAgent(ArtificialBrain):
         
         ######
         # print(self._received_messages)
+        
+        # print("Found Victims List:")
+        # print(self._found_victims)
+        # print("TODO Victims List:")
+        # print(self._todo)
                     
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
@@ -199,7 +204,7 @@ class BaselineAgent(ArtificialBrain):
 
                 # Check which victims can be rescued next because human or agent already found them
                 for vic in remaining_vics:
-                    print(remaining_vics)
+                    # print(remaining_vics)
                     
                     ######
                     # if 'critical' in vic:
@@ -221,6 +226,10 @@ class BaselineAgent(ArtificialBrain):
                         
                         # Plan path to victim because the exact location is known (i.e., the agent found this victim)
                         if 'location' in self._found_victim_logs[vic].keys():
+                            
+                            # This code is reached when the human says "Continue" when the robot finds a victim
+                            print("Code Location 0")
+                                
                             self._phase = Phase.PLAN_PATH_TO_VICTIM
                             return Idle.__name__, {'duration_in_ticks': 25}
                         
@@ -228,9 +237,9 @@ class BaselineAgent(ArtificialBrain):
                         # Plan path to area because the exact victim location is not known, only the area (i.e., human found this victim)
                         if 'location' not in self._found_victim_logs[vic].keys():
                             
+                            print("Code Location 1")
                             # This is reached when human does "Found victim X in area Y" but does NOT pick up
-                            if 'mild' in vic:
-                                print("Code Location 1")
+                            # if 'mild' in vic:
                             
                             self._phase = Phase.PLAN_PATH_TO_ROOM
                             return Idle.__name__, {'duration_in_ticks': 25}
@@ -664,6 +673,7 @@ class BaselineAgent(ArtificialBrain):
                                     # Do not continue searching the rest of the area but start planning to rescue the victim
                                     self._phase = Phase.FIND_NEXT_GOAL
 
+                            
                             # Identify injured victim in the area
                             if 'healthy' not in vic and vic not in self._found_victims:
                                 self._recent_vic = vic
@@ -672,6 +682,8 @@ class BaselineAgent(ArtificialBrain):
                                 self._found_victim_logs[vic] = {'location': info['location'],
                                                                 'room': self._door['room_name'],
                                                                 'obj_id': info['obj_id']}
+                                
+                                
                                 # Communicate which victim the agent found and ask the human whether to rescue the victim now or at a later stage
                                 if 'mild' in vic and self._answered == False and not self._waiting:
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue together", "Rescue alone", or "Continue" searching. \n \n \
@@ -727,9 +739,10 @@ class BaselineAgent(ArtificialBrain):
                     self._goal_vic = self._recent_vic
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
+                    
+                    
                 # Make a plan to rescue a found mildly injured victim together if the human decides so
-                if self.received_messages_content and self.received_messages_content[
-                    -1] == 'Rescue together' and 'mild' in self._recent_vic:
+                if self.received_messages_content and self.received_messages_content[-1] == 'Rescue together' and 'mild' in self._recent_vic:
                     self._rescue = 'together'
                     self._answered = True
                     self._waiting = False
@@ -745,6 +758,8 @@ class BaselineAgent(ArtificialBrain):
                     self._goal_vic = self._recent_vic
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
+                    
+                    
                 # Make a plan to rescue the mildly injured victim alone if the human decides so, and communicate this to the human
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue alone' and 'mild' in self._recent_vic:
@@ -757,6 +772,8 @@ class BaselineAgent(ArtificialBrain):
                     self._goal_loc = self._remaining[self._goal_vic]
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
+                    
+                    
                 # Continue searching other areas if the human decides so
                 if self.received_messages_content and self.received_messages_content[-1] == 'Continue':
                     self._answered = True
@@ -764,6 +781,8 @@ class BaselineAgent(ArtificialBrain):
                     self._todo.append(self._recent_vic)
                     self._recent_vic = None
                     self._phase = Phase.FIND_NEXT_GOAL
+                    
+                    
                 # Remain idle untill the human communicates to the agent what to do with the found victim
                 if self.received_messages_content and self._waiting and self.received_messages_content[
                     -1] != 'Rescue' and self.received_messages_content[-1] != 'Continue':
