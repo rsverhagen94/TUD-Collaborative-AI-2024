@@ -110,9 +110,11 @@ class BaselineAgent(ArtificialBrain):
                     
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
+        
         # Initialize and update trust beliefs for team members
         trustBeliefs = self._loadBelief(self._team_members, self._folder)
         self._trustBelief(self._team_members, trustBeliefs, self._folder, self._received_messages)
+
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
@@ -223,15 +225,16 @@ class BaselineAgent(ArtificialBrain):
                             return Idle.__name__, {'duration_in_ticks': 25}
                         
                         
-                        # Plan path to area because the exact victim location is not known, only the area (i.e., human found this  victim)
+                        # Plan path to area because the exact victim location is not known, only the area (i.e., human found this victim)
                         if 'location' not in self._found_victim_logs[vic].keys():
                             
-                            #####
-                            # if 'mild' in vic:
-                            print("Code Location 1")
+                            # This is reached when human does "Found victim X in area Y" but does NOT pick up
+                            if 'mild' in vic:
+                                print("Code Location 1")
                             
                             self._phase = Phase.PLAN_PATH_TO_ROOM
                             return Idle.__name__, {'duration_in_ticks': 25}
+                    
                         
                     # Define a previously found victim as target victim
                     if vic in self._found_victims and vic not in self._todo:
@@ -1063,6 +1066,28 @@ class BaselineAgent(ArtificialBrain):
                                  trustBeliefs[self._human_name]['search']['willingness']])
 
         return trustBeliefs
+    
+    # def _trustBelief(self, members, trustBeliefs, folder, task, belief, increment):
+    #     '''
+    #     Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
+    #     '''
+    #     # Update the trust value
+    #     trustBeliefs[self._human_name][task][belief] += increment 
+    #     # Restrict the belief value to a range of -1 to 1
+    #     trustBeliefs[self._human_name][task][belief] = np.clip(trustBeliefs[self._human_name][task][belief], -1, 1)
+
+    #     # Save current trust belief values to a CSV file for logging
+    #     with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
+    #         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #         csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
+    #         csv_writer.writerow([
+    #             self._human_name, 
+    #             task, 
+    #             trustBeliefs[self._human_name][task]['competence'],
+    #             trustBeliefs[self._human_name][task]['willingness']
+    #         ])
+
+    #     return trustBeliefs
 
    
    
