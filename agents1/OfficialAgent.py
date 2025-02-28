@@ -15,6 +15,8 @@ from matrx.messages.message import Message
 from matrx.messages.message_manager import MessageManager
 from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, DropObjectTogether, CarryObject, Drop
 
+from agents1.sessions.stoneObstacle import StoneObstacleSession
+from agents1.eventUtils import PromptSession
 
 class Phase(enum.Enum):
     INTRO = 1,
@@ -78,7 +80,11 @@ class BaselineAgent(ArtificialBrain):
         self._remainingZones = []
         self._trustBeliefs = None # only load the trust beliefs once
         self._re_searching = False # once it becomes true, competence penalty is applied when the agent found obstacles or victims
-        self._not_penalizable = [] # contains the areas searched by agent and where the agent found obstacles or victims
+        self._not_penalizable = [] # contains the areas searched by agent and where the agent found obstacles or victims        self._trustBeliefs = None # Only load the trust beliefs once
+
+        # Used when removing stone obstacles
+        self._current_prompt = None
+
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
         self._state_tracker = StateTracker(agent_id=self.agent_id)
@@ -105,10 +111,25 @@ class BaselineAgent(ArtificialBrain):
                     self._received_messages.append(mssg.content)
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
+        
+        
         # Initialize and update trust beliefs for team members
         if self._trustBeliefs == None:
             self._trustBeliefs = self._loadBelief(self._team_members, self._folder)
-        self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, self._received_messages)
+        
+        
+        # Testing _trustBelief() by incrementing Competence of Search by 0.10
+        # Remove when functionality is confirmed
+        ### 
+        # for message in self._received_messages:
+        #     if 'Collect' in message:
+        #         self._trustBelief(state, self._team_members, self._self._trustBeliefs, self._folder, "search", "competence", 0.10)
+        #         print(self._trustBeliefs[self._human_name]['search']['competence'])
+        ###
+        
+        
+        # this should be removed:
+        ####### self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, self._received_messages) 
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
@@ -241,6 +262,8 @@ class BaselineAgent(ArtificialBrain):
                                    and room['room_name'] not in self._to_search]
                 # If all areas have been searched but the task is not finished, start searching areas again
                 if self._remainingZones and len(unsearched_rooms) == 0:
+                    willingness_update = self._compute_searche_willingness_update(self._searched_rooms_claimed_by_human, self._searched_rooms_by_agent)
+                    self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, "search", "willingness", willingness_update)
                     self._to_search = []
                     self._searched_rooms = list(self._searched_rooms_by_agent) # Reset the searched rooms(only includes the ones searched by the agent)
                     self._searched_rooms_claimed_by_human = [] # Reset the searched rooms claimed by the human
@@ -386,11 +409,10 @@ class BaselineAgent(ArtificialBrain):
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
                             if self._re_searching:
-                                self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1
-                                self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
-                                    self._trustBeliefs[self._human_name]['search']['competence'], -1, 1)
+                                # Competence penalty for the human when the agent found a rock in a previously searched area
+                                self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, "search", "competence", -0.1) #TODO: change this hardcoded value
                                 self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
-                                self._send_message('I found rock blocking ' + str(self._door['room_name']) + 'even though you already searched this area. I am adjusting my trust in your search competence.',
+                                self._send_message('I found rock blocking ' + str(self._door['room_name']) + ' even though you already searched this area. I am adjusting my trust in your search competence.',
                                                   'RescueBot')
                                 
                             self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
@@ -433,11 +455,10 @@ class BaselineAgent(ArtificialBrain):
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
                             if self._re_searching:
-                                self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1
-                                self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
-                                    self._trustBeliefs[self._human_name]['search']['competence'], -1, 1)
+                                # Competence penalty for the human when the agent found a tree in a previously searched area
+                                self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, "search", "competence", -0.1) #TODO: change this hardcoded value
                                 self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
-                                self._send_message('I found tree blocking ' + str(self._door['room_name']) + 'even though you already searched this area. I am adjusting my trust in your search competence.',
+                                self._send_message('I found tree blocking ' + str(self._door['room_name']) + ' even though you already searched this area. I am adjusting my trust in your search competence.',
                                                   'RescueBot')
                                 
                             self._send_message('Found tree blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
@@ -478,13 +499,13 @@ class BaselineAgent(ArtificialBrain):
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
                             if self._re_searching:
-                                self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1
-                                self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
-                                    self._trustBeliefs[self._human_name]['search']['competence'], -1, 1)
+                                # Competence penalty for the human when the agent found a stone in a previously searched area
+                                self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, "search", "competence", -0.1) #TODO: change this hardcoded value
                                 self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
                                 self._send_message('I found stones blocking ' + str(self._door['room_name']) + 'even though you already searched this area. I am adjusting my trust in your search competence.',
                                                   'RescueBot')
                                 
+                            # Stones
                             self._send_message('Found stones blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove together", "Remove alone", or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + ' \n explore - areas searched: area ' + str(
@@ -492,14 +513,21 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                               'RescueBot')
                             self._waiting = True
+
+                            self._current_prompt = StoneObstacleSession(self)
+
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
+                            self._current_prompt.continue_stone()
+
                             self._answered = True
                             self._waiting = False
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
+
+
                         # Remove the obstacle alone if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove alone' and not self._remove:
@@ -509,28 +537,41 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
+
+                            self._current_prompt.remove_alone()
+
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
+
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
                             if not self._remove:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
+                            # Tell the human to come over and be idle until human arrives
                             if not state[{'is_human_agent': True}]:
+                                self._current_prompt.remove_together()
+
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
+                                self._current_prompt.remove_together()
+
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
+                            if isinstance(self._current_prompt, PromptSession):
+                                self._current_prompt.wait()
                             return None, {}
                 # If no obstacles are blocking the entrance, enter the area
                 if len(objects) == 0:
+                    if isinstance(self._current_prompt, StoneObstacleSession):
+                        # If the current prompt is a stone obstacle session, then a stone obstacle must've been removed
+                        self._current_prompt.complete_remove_together()
                     self._answered = False
                     self._remove = False
                     self._waiting = False
@@ -613,10 +654,8 @@ class BaselineAgent(ArtificialBrain):
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
                                         if self._re_searching and self._door['room_name'] not in self._not_penalizable:
-                                            self._trustBeliefs[self._human_name]['search']['competence'] += 0.1 #TODO: how much to penalize?
-                                            self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
-                                                self._trustBeliefs[self._human_name]['search']['competence'], -1, 1
-                                            )
+                                            # Competence Update: Increase trust in human if bot found victims marked as 'found' during re-searching**
+                                            self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, 'search', 'competence', 0.1) #TODO: change this hardcoded value
                                             self._send_message('Well done! In the previous searching round you reported this room is searched, and the victim is reported as found, I am adjusting my trust in your search competence.')
                                         self._searched_rooms.append(self._door['room_name'])
                                         # mark the area as searched by the agent
@@ -628,10 +667,7 @@ class BaselineAgent(ArtificialBrain):
                             if 'healthy' not in vic and vic not in self._found_victims:
                                 # Competence Update: Penalize human if bot finds victim during re-searching**
                                 if self._re_searching and self._door['room_name'] not in self._not_penalizable:
-                                    self._trustBeliefs[self._human_name]['search']['competence'] -= 0.1 #TODO: how much to penalize?
-                                    self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
-                                        self._trustBeliefs[self._human_name]['search']['competence'], -1, 1
-                                    )
+                                    self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, 'search', 'competence', -0.1) #TODO: change this hardcoded value
                                     self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
 
                                     self._send_message(
@@ -682,11 +718,9 @@ class BaselineAgent(ArtificialBrain):
                     self.received_messages_content = []
                 # Add the area to the list of searched areas
                 if self._door['room_name'] not in self._searched_rooms:
+                    # Competence Update: Increase trust in human if bot did not find obstacles/victims during re-searching**
                     if self._re_searching and self._door['room_name'] not in self._not_penalizable:
-                        self._trustBeliefs[self._human_name]['search']['competence'] += 0.1 #TODO: how much to penalize?
-                        self._trustBeliefs[self._human_name]['search']['competence'] = np.clip(
-                            self._trustBeliefs[self._human_name]['search']['competence'], -1, 1
-                        )
+                        self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, 'search', 'competence', 0.1) #TODO: change this hardcoded value
                         self._send_message('Well done! In the previous searching round you reported this room is searched, and I verified it now! I am adjusting my trust in your search competence.')
                     self._searched_rooms.append(self._door['room_name'])
                     # mark the area as searched by the agent
@@ -1023,46 +1057,26 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-    def _trustBelief(self, state, members, trustBeliefs, folder, receivedMessages):
+    def _trustBelief(self, state, members, trustBeliefs, folder, task, belief, increment):
         '''
-        Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
+        Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
         '''
-        # Update the trust value based on for example the received messages
-        # for message in receivedMessages:
-            # # Increase agent trust in a team member that rescued a victim
-            # if 'Collect' in message:
-            #     trustBeliefs[self._human_name]['search']['competence'] += 0.10 #TODO: change 'search' to the task the human is performing
-            #     # Restrict the competence belief to a range of -1 to 1
-            #     trustBeliefs[self._human_name]['search']['competence'] = np.clip(trustBeliefs[self._human_name]['search']['competence'], -1,
-            #                                                            1)
-                
-        # Increase willingness of search task based on the received messages when all areas have been claimed as searched
-        unsearched_rooms = [room['room_name'] for room in state.values()
-                                   if 'class_inheritance' in room
-                                   and 'Door' in room['class_inheritance']
-                                   and room['room_name'] not in self._searched_rooms
-                                   and room['room_name'] not in self._to_search]
-        if self._remainingZones and len(unsearched_rooms) == 0:
-            X = len(self._searched_rooms_claimed_by_human) #TODO: if the human spam with agent searched areas from previous search, the areas are not counted as communications.
-            Z = len(self._searched_rooms_by_agent)
-            Y = max(1, Z // 2) #TODO: discuss with team members how to determine the value of Y
-            # Adjust willingness proportionally
-            if X > Y:
-                trustBeliefs[self._human_name]['search']['willingness'] += 0.10 * (X - Y) #TODO: introduce confidence lvl and tune this
-            elif X < Y:
-                trustBeliefs[self._human_name]['search']['willingness'] -= 0.10 * (Y - X) #TODO: introduce confidence lvl and tune this
-
-            # Clip willingness between -1 and 1
-            trustBeliefs[self._human_name]['search']['willingness'] = np.clip(
-                trustBeliefs[self._human_name]['search']['willingness'], -1, 1
-            )
-
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
+        # Update the trust value
+        trustBeliefs[self._human_name][task][belief] += increment 
+        # Restrict the belief value to a range of -1 to 1
+        trustBeliefs[self._human_name][task][belief] = np.clip(trustBeliefs[self._human_name][task][belief], -1, 1)
+
+        # Save current trust belief values to a CSV file for logging
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, 'search', trustBeliefs[self._human_name]['search']['competence'],
-                                 trustBeliefs[self._human_name]['search']['willingness']])
+            csv_writer.writerow([
+                self._human_name, 
+                task, 
+                trustBeliefs[self._human_name][task]['competence'],
+                trustBeliefs[self._human_name][task]['willingness']
+            ])
 
         return trustBeliefs
 
@@ -1113,3 +1127,20 @@ class BaselineAgent(ArtificialBrain):
             else:
                 locs.append((x[i], max(y)))
         return locs
+
+
+# search trust mechanism
+    def _compute_search_willingness_update(self, searched_rooms_claimed_by_human, searched_rooms_by_agent):
+        '''
+        Compute the willingness update based on the number of areas the human claimed to have searched and the number of areas the agent actually searched.
+        '''
+        # Compute the difference between the number of areas the human claimed to have searched and the number of areas the agent actually searched
+        X = len(searched_rooms_claimed_by_human)
+        Z = len(searched_rooms_by_agent)
+        Y = max(1, Z // 2)
+        # Adjust willingness proportionally
+        if X > Y:
+            return 0.10 * (X - Y) #TODO: introduce confidence lvl and tune this
+        elif X < Y:
+            return -0.10 * (Y - X) 
+    
