@@ -473,7 +473,7 @@ class BaselineAgent(ArtificialBrain):
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
-                            self._current_prompt.continueStone()
+                            self._current_prompt.continue_stone()
 
                             self._answered = True
                             self._waiting = False
@@ -492,7 +492,7 @@ class BaselineAgent(ArtificialBrain):
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
 
-                            self._current_prompt.removeAlone()
+                            self._current_prompt.remove_alone()
 
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
 
@@ -503,7 +503,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._answered = True
                             # Tell the human to come over and be idle untill human arrives
                             if not state[{'is_human_agent': True}]:
-                                self._current_prompt.removeTogether()
+                                self._current_prompt.remove_together()
 
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
@@ -511,7 +511,7 @@ class BaselineAgent(ArtificialBrain):
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
-                                self._current_prompt.removeTogether()
+                                self._current_prompt.remove_together()
 
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
@@ -525,7 +525,7 @@ class BaselineAgent(ArtificialBrain):
                 if len(objects) == 0:
                     if isinstance(self._current_prompt, StoneObstacleSession):
                         # If the current prompt is a stone obstacle session, then a stone obstacle must've been removed
-                        self._current_prompt.completeRemoveTogether()
+                        self._current_prompt.complete_remove_together()
                     self._answered = False
                     self._remove = False
                     self._waiting = False
