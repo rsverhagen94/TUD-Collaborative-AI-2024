@@ -15,6 +15,8 @@ from matrx.messages.message import Message
 from matrx.messages.message_manager import MessageManager
 from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, DropObjectTogether, CarryObject, Drop
 
+from agents1.sessions.stoneObstacle import StoneObstacleSession
+from agents1.eventUtils import PromptSession
 
 class Phase(enum.Enum):
     INTRO = 1,
@@ -73,6 +75,9 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
+
+        # Used when removing stone obstacles
+        self._current_prompt = None
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -451,6 +456,7 @@ class BaselineAgent(ArtificialBrain):
                         objects.append(info)
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
+                            # Stones
                             self._send_message('Found stones blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove together", "Remove alone", or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + ' \n explore - areas searched: area ' + str(
@@ -458,14 +464,21 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                               'RescueBot')
                             self._waiting = True
+
+                            self._current_prompt = StoneObstacleSession(self)
+
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
+                            self._current_prompt.continue_stone()
+
                             self._answered = True
                             self._waiting = False
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
+
+
                         # Remove the obstacle alone if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove alone' and not self._remove:
@@ -475,7 +488,11 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
+
+                            self._current_prompt.remove_alone()
+
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
+
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
@@ -483,20 +500,29 @@ class BaselineAgent(ArtificialBrain):
                                 self._answered = True
                             # Tell the human to come over and be idle untill human arrives
                             if not state[{'is_human_agent': True}]:
+                                self._current_prompt.remove_together()
+
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
+                                self._current_prompt.remove_together()
+
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
+                            if isinstance(self._current_prompt, PromptSession):
+                                self._current_prompt.wait()
                             return None, {}
                 # If no obstacles are blocking the entrance, enter the area
                 if len(objects) == 0:
+                    if isinstance(self._current_prompt, StoneObstacleSession):
+                        # If the current prompt is a stone obstacle session, then a stone obstacle must've been removed
+                        self._current_prompt.complete_remove_together()
                     self._answered = False
                     self._remove = False
                     self._waiting = False
