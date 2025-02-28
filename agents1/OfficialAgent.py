@@ -75,6 +75,7 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
+        self._trustBeliefs = None # Only load the trust beliefs once
 
         # Used when removing stone obstacles
         self._current_prompt = None
@@ -105,9 +106,20 @@ class BaselineAgent(ArtificialBrain):
                     self._received_messages.append(mssg.content)
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
+        
+        
         # Initialize and update trust beliefs for team members
-        trustBeliefs = self._loadBelief(self._team_members, self._folder)
-        self._trustBelief(self._team_members, trustBeliefs, self._folder, self._received_messages)
+        if self._trustBeliefs == None:
+            self._trustBeliefs = self._loadBelief(self._team_members, self._folder)
+        
+        
+        # Testing _trustBelief() by incrementing Competence of Search by 0.10 when Human engages search
+        # Remove when functionality is confirmed
+        ###
+        for message in receivedMessages:
+            if 'Collect' in message: 
+                self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", 0.10)
+        ###
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
@@ -973,24 +985,27 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-    def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
+
+    
+    def _trustBelief(self, members, trustBeliefs, folder, task, belief, increment):
         '''
-        Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
+        Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
         '''
-        # Update the trust value based on for example the received messages
-        for message in receivedMessages:
-            # Increase agent trust in a team member that rescued a victim
-            if 'Collect' in message:
-                trustBeliefs[self._human_name]['search']['competence'] += 0.10 #TODO: change 'search' to the task the human is performing
-                # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['search']['competence'] = np.clip(trustBeliefs[self._human_name]['search']['competence'], -1,
-                                                                       1)
-        # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
+        # Update the trust value
+        trustBeliefs[self._human_name][task][belief] += increment 
+        # Restrict the belief value to a range of -1 to 1
+        trustBeliefs[self._human_name][task][belief] = np.clip(trustBeliefs[self._human_name][task][belief], -1, 1)
+
+        # Save current trust belief values to a CSV file for logging
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, 'search', trustBeliefs[self._human_name]['search']['competence'],
-                                 trustBeliefs[self._human_name]['search']['willingness']])
+            csv_writer.writerow([
+                self._human_name, 
+                task, 
+                trustBeliefs[self._human_name][task]['competence'],
+                trustBeliefs[self._human_name][task]['willingness']
+            ])
 
         return trustBeliefs
 
