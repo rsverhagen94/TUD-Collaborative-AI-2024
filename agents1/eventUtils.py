@@ -17,7 +17,5 @@ class PromptSession:
 
     @staticmethod
     def increment_values(task, willingness, competence, bot):
-        #TODO
-        # bot._trustBeliefs[bot._human_name][task]['willingness'] += willingness
-        # bot._trustBeliefs[bot._human_name][task]['competence'] += competence
-        pass
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "willingness", willingness)
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "competence", competence)
