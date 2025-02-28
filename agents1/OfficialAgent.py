@@ -451,8 +451,6 @@ class BaselineAgent(ArtificialBrain):
                         else:
                             return None, {}
 
-                    # TODO: axel
-
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'stone' in \
                             info['obj_id']:
                         objects.append(info)
@@ -467,7 +465,6 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._waiting = True
 
-                            # TODO: Not a TODO, just highlighting that this is the entry point of the session creation
                             self._current_prompt = StoneObstacleSession(self)
 
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
