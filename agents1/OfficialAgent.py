@@ -932,8 +932,16 @@ class BaselineAgent(ArtificialBrain):
                 }
                 return trustBeliefs[self._human_name]
 
+    '''
+    Trust Model
+    Each dictionary has actions (as keys) which determine whether the trust value increases or decreases depending on the paramaters in the sub-dictionaries (as values)
+        - impact: determines the significance of the task (positive for awarding trust and negative for removing trust)
+        - weight: determines the significance of each observed repetition of the task (should always be positive)
+        - alpha (optional): scales the overall value of the trust (default is 0.05)
+        - beta (optional): the exponent of the exponential function used to adjust trust (default is 0.15)
+    '''
     COMPETENCE_MODEL = {
-        "rescueSuccess": {"function": "logistic", "L": 0.3, "k": 1.5, "x0": 3} # Test entry. Need to fine tune parameters.
+        "rescueSuccess": {"impact": 0.2, "weight": 0.3}
     }
 
     WILLINGNESS_MODEL = {
@@ -1035,7 +1043,7 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs['destroy obstacles']['willingness'] -= 0.1
 
                 if 'to help you remove an obstacle' in current_msg and 'removing tree' in next_msg:
-                    trustBeliefs['destroy obstacles']['willingness'] = 
+                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
                     trustBeliefs['destroy obstacles']['competence'] += 0.1
                 
                 if 'collect' in current_msg:
@@ -1074,27 +1082,38 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-    def _updateTrust(self, trustBeliefs, task, action, x):
+
+    def _updateTrust(self, trustBeliefs, task, action, rep=1):
         '''
-        Update the trust values for the given task, based on the given action which is quantified by the value x
+        Update the trust values for the given task, based on the given action which is quantified by the number of repetitions
         '''
         deltaCompetence = 0.0
         deltaWillingness = 0.0
 
         if action in self.COMPETENCE_MODEL:
             params = self.COMPETENCE_MODEL[action]
-            func = params
-            if params["function"] == "logistic":
-                deltaCompetence = self._logistic(x, params["L"], params["k"], params["x0"])
-            else:
-                print("Unknown function for action", action, "in competence model")
+            x = params["impact"] * params["weight"] * rep
+            alpha = params.get("alpha", 0.05)
+            beta = params.get("beta", 0.15)
+            deltaCompetence = self._exponential(x, alpha, beta)
+            
 
         if action in self.WILLINGNESS_MODEL:
             params = self.WILLINGNESS_MODEL[action]
-            if params["function"] == "logistic":
-                deltaWillingness = self._logistic(x, params["L"], params["k"], params["x0"])
-            else:
-                print("Unknown function for action", action, "in willingness model")
+            x = params["impact"] * params["weight"] * rep
+            alpha = params.get("alpha", 0.05)
+            beta = params.get("beta", 0.15)
+            deltaWillingness = self._exponential(x, alpha, beta)
+
+        if action not in self.COMPETENCE_MODEL and action not in self.WILLINGNESS_MODEL:
+            print("WARNING: updateTrust function was called with an unknown action:", action)
+            return
+
+        if deltaCompetence != 0.0:
+            print("Observed the action", action, ": Competence changed from", trustBeliefs[task]['competence'], "to", trustBeliefs[task]['competence'] + deltaCompetence, "[ ", deltaCompetence, "]")
+
+        if deltaWillingness != 0.0:
+            print("Observed the action", action, ": Willingness changed from", trustBeliefs[task]['willingness'], "to", trustBeliefs[task]['willingness'] + deltaWillingness, "[ ", deltaWillingness, "]")
 
         # Calculate new competence value, clip between (-1,1), replace old competence value
         newCompetence = trustBeliefs[task]['competence'] + deltaCompetence
@@ -1103,6 +1122,12 @@ class BaselineAgent(ArtificialBrain):
         # Calculate new willingness value, clip between (-1,1), replace old willingness value
         newWillingness = trustBeliefs[task]['willingness'] + deltaWillingness
         trustBeliefs[task]['willingness'] = np.clip(newWillingness, -1, 1)
+
+    def _exponential(self, x, alpha=0.05, beta=0.15):
+        '''
+        Implements exponential growth (positive x values) and exponential decay (negative x values): https://en.wikipedia.org/wiki/Exponential_decay
+        '''
+        return alpha * np.exp(beta * x)
 
     def _logistic(self, x, L, k, x0):
         '''
