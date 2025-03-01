@@ -101,7 +101,7 @@ class TrustService:
                     'remove_competence': score[TrustBeliefs.REMOVE_COMPETENCE]
                 })
         
-    def trigger_trust_change(self, trust_belief, user_id, send_message, value, weight=1, message=None):
+    def trigger_trust_change(self, trust_belief, user_id, send_message, value, weight=0.1, message=None):
         """
         Adjusts the trust score for a specific user and trust belief.
 
@@ -114,6 +114,20 @@ class TrustService:
         send_message("Trust belief change triggered for user {} with value {} and weight {}".format(user_id, value, weight), 'DEBUG TRUST', True)
         if message:
             send_message("Message: {}".format(message), 'DEBUG TRUST')
+
+        # Retrieve the current score for the specified trust belief.
+        current_score = self.trust_scores[user_id][trust_belief]
+
+        # Calculate the new score.
+        new_score = current_score + (value * weight)
+
+        # Clamp the new score between 0 and 1 (adjust range if necessary).
+        new_score = max(0, min(1, new_score))
+
+        # Update the trust score.
+        self.trust_scores[user_id][trust_belief] = new_score
+
+        print("DEBUG: Updated {} for user {}: {}".format(trust_belief.name, user_id, new_score))
             
     def human_search_room(self, room_id):
         """
