@@ -882,16 +882,16 @@ class BaselineAgent(ArtificialBrain):
                 # If a received message involves team members searching areas, add these areas to the memory of areas that have been explored
                 if msg.startswith("Search:"):
                     area = 'area ' + msg.split()[-1]
-                    
+
                     # 0 means the area has not been searched yet
                     # 1 means the area was already searched by the human
                     # 2 means the area was already searched by the agent
-                    searched = self.trustService.was_searched(area)
-
+                    searched = self.trust_service.was_searched(area)
                     if searched == 0:
-                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
-                    elif searched == 1 or searched == 2:
-                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
+                        self.trust_service.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
+                        self.trust_service.human_search_room(area)
+                    elif searched in [1, 2]:
+                        self.trust_service.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
                     
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
