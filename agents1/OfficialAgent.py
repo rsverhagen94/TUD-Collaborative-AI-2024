@@ -1100,3 +1100,27 @@ class BaselineAgent(ArtificialBrain):
         willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.5)
 
         return random.random() < willingness_value
+    
+def _passesCompetenceCheckForRemoval(self):
+    """
+    Determines if the human passes the competence check for removal based on their recorded competence trust belief.
+    The probability of passing is determined by the competence score.
+    """
+    if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
+        return False  # Safety check to ensure trust service and human name are available
+
+    competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_COMPETENCE, 0.5)
+
+    return random.random() < competence_value
+
+def _passesWillingnessCheckForRemoval(self):
+    """
+    Determines if the human passes the willingness check for removal based on their recorded willingness trust belief.
+    The probability of passing is determined by the willingness score.
+    """
+    if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
+        return False  # Safety check to ensure trust service and human name are available
+
+    willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_WILLINGNESS, 0.5)
+
+    return random.random() < willingness_value
