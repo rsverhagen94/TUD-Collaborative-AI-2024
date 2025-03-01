@@ -16,6 +16,7 @@ from matrx.messages.message_manager import MessageManager
 from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, DropObjectTogether, CarryObject, Drop
 
 from agents1.sessions.stoneObstacle import StoneObstacleSession
+from agents1.sessions.treeObstacle import TreeObstacleSession
 from agents1.eventUtils import PromptSession
 
 class Phase(enum.Enum):
@@ -483,9 +484,12 @@ class BaselineAgent(ArtificialBrain):
                                 self._searched_rooms).replace('area ', '') + ' \
                                 \n clock - removal time: 10 seconds', 'RescueBot')
                             self._waiting = True
+                            self._current_prompt = TreeObstacleSession(self, info, 100)
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
+                            self._current_prompt.continue_tree()
+
                             self._answered = True
                             self._waiting = False
                             # Add area to the to do list
@@ -494,6 +498,8 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
+                            self._current_prompt.remove_tree()
+
                             if not self._remove:
                                 self._answered = True
                                 self._waiting = False
@@ -507,6 +513,8 @@ class BaselineAgent(ArtificialBrain):
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
                         # Remain idle untill the human communicates what to do with the identified obstacle
                         else:
+                            if isinstance(self._current_prompt, PromptSession):
+                                return self._current_prompt.wait()
                             return None, {}
 
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'stone' in \
@@ -523,7 +531,7 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._waiting = True
 
-                            self._current_prompt = StoneObstacleSession(self, 100)
+                            self._current_prompt = StoneObstacleSession(self, info, 100)
 
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
@@ -574,7 +582,7 @@ class BaselineAgent(ArtificialBrain):
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             if isinstance(self._current_prompt, PromptSession):
-                                self._current_prompt.wait()
+                                return self._current_prompt.wait()
                             return None, {}
                 # If no obstacles are blocking the entrance, enter the area
                 if len(objects) == 0:
