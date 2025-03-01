@@ -1026,12 +1026,12 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-    def _send_message(self, mssg, sender):
+    def _send_message(self, mssg, sender, force = False):
         '''
         send messages from agent to other team members
         '''
         msg = Message(content=mssg, from_id=sender)
-        if msg.content not in self.received_messages_content and 'Our score is' not in msg.content:
+        if msg.content not in self.received_messages_content and 'Our score is' not in msg.content or force:
             self.send_message(msg)
             self._send_messages.append(msg.content)
         # Sending the hidden score message (DO NOT REMOVE)
