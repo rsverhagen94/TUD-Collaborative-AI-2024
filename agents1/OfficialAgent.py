@@ -85,6 +85,7 @@ class BaselineAgent(ArtificialBrain):
         self._all_room_tiles = None
         # Used when removing stone obstacles
         self._current_prompt = None
+        self._stop_finding_next_goal = False
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -118,6 +119,18 @@ class BaselineAgent(ArtificialBrain):
                     self._received_messages.append(mssg.content)
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
+        
+        # If all victims are reported as collected, evaluate the trust beliefs and update them
+        # Note: if human rescued a victim without reporting it, the agent will not know about it, thus the game will end before the collected victims list is full, and the trust beliefs will not be updated
+        # Also, if the human lies about rescuing a victim, the collected victims list will be full before the game ends, then the trust beliefs will be updated but the agent will stop finding the next goal
+        if len(self._collected_victims) == 8 and not self._stop_finding_next_goal:
+            self._stop_finding_next_goal = True
+            # Willingness Update: Increase trust in human if all victims are rescued
+            willingness_update = self._compute_search_willingness_update(self._searched_rooms_claimed_by_human, self._searched_rooms_by_agent)
+            self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, "search", "willingness", willingness_update)
+            # Competence Update: Increase trust in human if all victims are rescued
+            self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, "search", "competence", 0.1 * len(self._searched_rooms_claimed_by_human)) #TODO: change this hardcoded value
+            print("Search Willingness/Competence Increased: All victims rescued.")
         
         
         # Initialize and update trust beliefs for team members
@@ -155,7 +168,7 @@ class BaselineAgent(ArtificialBrain):
         if self._agent_loc in [3, 4, 7, 10, 13, 14]:
             self._distance_drop = 'close'
 
-        # Check whether victims are currently being carried together by human and agent 
+        # Check whether victims are currently being carried together by human and agent
         for info in state.values():
             if 'is_human_agent' in info and self._human_name in info['name'] and len(
                     info['is_carrying']) > 0 and 'critical' in info['is_carrying'][0]['obj_id'] or \
