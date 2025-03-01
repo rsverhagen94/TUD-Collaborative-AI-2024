@@ -434,12 +434,27 @@ class BaselineAgent(ArtificialBrain):
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
-                            self._answered = True
-                            self._waiting = False
-                            # Add area to the to do list
-                            self._to_search.append(self._door['room_name'])
-                            self._phase = Phase.FIND_NEXT_GOAL
-                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            # Perform competence and willingness check for removal
+                            competence_pass = self._passesCompetenceCheckForRemoval()
+                            willingness_pass = self._passesWillingnessCheckForRemoval()
+
+                            if competence_pass and willingness_pass:
+                                self._answered = True
+                                self._waiting = False
+                                # Add area to the to-do list
+                                self._to_search.append(self._door['room_name'])
+                                self._phase = Phase.FIND_NEXT_GOAL
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            else:  
+                                # ❌ Human is not trusted → Force removal
+                                self._send_message("Sorry, I don't trust you! I decided to remove the tree anyway!", 'RescueBot')
+                                self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.', 'RescueBot')
+                                
+                                self._answered = True
+                                self._waiting = False
+                                self._remove = True  # ✅ Ensure removal happens immediately
+                                self._phase = Phase.ENTER_ROOM
+                                return RemoveObject.__name__, {'object_id': info['obj_id']}  # ✅ Immediate removal
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
