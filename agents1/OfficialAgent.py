@@ -895,6 +895,7 @@ class BaselineAgent(ArtificialBrain):
                     
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
+                        
                 # If a received message involves team members finding victims, add these victims and their locations to memory
                 if msg.startswith("Found:"):
                     # Identify which victim and area it concerns
@@ -1079,7 +1080,7 @@ class BaselineAgent(ArtificialBrain):
         Determines if the human passes the competence check based on their recorded competence trust belief.
         The probability of passing is determined by the competence score.
         """
-        if not hasattr(self, "trust_service") or not hasattr(self, "_human_name"):
+        if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
         competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_COMPETENCE, 0.5)
@@ -1091,7 +1092,7 @@ class BaselineAgent(ArtificialBrain):
         Determines if the human passes the willingness check based on their recorded willingness trust belief.
         The probability of passing is determined by the willingness score.
         """
-        if not hasattr(self, "trust_service") or not hasattr(self, "_human_name"):
+        if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
         willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.5)
