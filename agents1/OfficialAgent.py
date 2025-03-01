@@ -408,7 +408,7 @@ class BaselineAgent(ArtificialBrain):
                             if not state[{'is_human_agent': True}]:
                                 self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
                                                   'RescueBot')
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, message="Human agreed to remove a rock.")
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message)
                                 return None, {}
                             
                             # Tell the human to remove the obstacle when he/she arrives
