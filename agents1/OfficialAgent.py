@@ -77,7 +77,7 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
-        self._tasks = ['remove_objects']
+        self._tasks = ['remove_objects', 'rescue_mild']
         self._first_tick = True
         self._trustBeliefs = {}
         self._processed_messages = []
@@ -85,6 +85,8 @@ class BaselineAgent(ArtificialBrain):
         self._allegedly_removed_obstacles = []
         self._initial_waiting_time = None
         self._ask_human = None
+        self._goal_locations = {}
+        self._rescued_by_robot = []
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -185,6 +187,7 @@ class BaselineAgent(ArtificialBrain):
                         remaining_zones.append(info)
                         remaining_vics.append(str(info['img_name'])[8:-4])
                         remaining[str(info['img_name'])[8:-4]] = info['location']
+                    self._goal_locations[str(info['img_name'])[8:-4]] = info['location']
                 if remaining_zones:
                     self._remainingZones = remaining_zones
                     self._remaining = remaining
@@ -308,6 +311,9 @@ class BaselineAgent(ArtificialBrain):
                 self._phase = Phase.FOLLOW_PATH_TO_ROOM
 
             if Phase.FOLLOW_PATH_TO_ROOM == self._phase:
+                vics = self.check_for_victims_nearby(state, trustBeliefs)
+                if vics is not None:
+                    return vics
                 # Check if the previously identified target victim was rescued by the human
                 if self._goal_vic and self._goal_vic in self._collected_victims:
                     # Reset current door and switch to finding the next goal
@@ -429,13 +435,12 @@ class BaselineAgent(ArtificialBrain):
                                                   'RescueBot')
                                 return None, {}
                         if self._processed_messages and self._processed_messages[-1] == f"Remove {str(self._door['room_name'])}" and self._waiting:
-                            time_passed = (datetime.datetime.now() - self._initial_waiting_time).total_seconds()
+                            time_passed = round((datetime.datetime.now() - self._initial_waiting_time).total_seconds(), 1)
                             threshold = 0
                             if self._distance_human == 'far':
                                 threshold = 14
                             elif self._distance_human == 'close':
                                 threshold = 11
-
                             if time_passed > threshold:
                                 willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
                                 instances = trustBeliefs[self._human_name]['remove_objects']['instances']
@@ -449,7 +454,7 @@ class BaselineAgent(ArtificialBrain):
                                 self.save_to_file(trustBeliefs)
                                 willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
                                 decision_threshold = (1 + willingness) / 2
-                                if random.uniform(0, 1) > decision_threshold:
+                                if random.uniform(0, 1) > decision_threshold and time_passed % 3 == 0:
                                     self._answered = True
                                     self._waiting = False
                                     # Add area to the to do list
@@ -542,8 +547,6 @@ class BaselineAgent(ArtificialBrain):
                                 -1] == 'Remove together' or self._remove:
                                 self._processed_messages.append(f"Remove together {str(self._door['room_name'])}")
                                 self._initial_waiting_time = datetime.datetime.now()
-                                print("Waiting time: ", self._initial_waiting_time)
-                                print("Now ", datetime.datetime.now())
                                 if not self._remove:
                                     self._answered = True
                                 # Tell the human to come over and be idle untill human arrives
@@ -561,7 +564,7 @@ class BaselineAgent(ArtificialBrain):
                                     return None, {}
                             if self._processed_messages and self._processed_messages[
                                 -1] == f"Remove together {str(self._door['room_name'])}" and self._waiting:
-                                time_passed = (datetime.datetime.now() - self._initial_waiting_time).total_seconds()
+                                time_passed = round((datetime.datetime.now() - self._initial_waiting_time).total_seconds(), 1)
                                 threshold = 0
                                 if self._distance_human == 'far':
                                     threshold = 12
@@ -582,10 +585,9 @@ class BaselineAgent(ArtificialBrain):
                                     self.save_to_file(trustBeliefs)
                                     willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
                                     decision_threshold = (1 + willingness) / 2
-                                    if random.uniform(0, 1) > decision_threshold:
+                                    if random.uniform(0, 1) > decision_threshold and time_passed % 3 == 0:
                                         self._answered = True
                                         self._waiting = False
-                                        print(datetime.datetime.now())
                                         self._send_message(
                                             'Removing stones blocking ' + str(self._door['room_name']) + '.',
                                             'RescueBot')
@@ -661,6 +663,9 @@ class BaselineAgent(ArtificialBrain):
                 self._phase = Phase.FOLLOW_ROOM_SEARCH_PATH
 
             if Phase.FOLLOW_ROOM_SEARCH_PATH == self._phase:
+                vics = self.check_for_victims_nearby(state, trustBeliefs)
+                if vics is not None:
+                    return vics
                 # Search the area
                 self._state_tracker.update(state)
                 action = self._navigator.get_move_action(self._state_tracker)
@@ -758,6 +763,7 @@ class BaselineAgent(ArtificialBrain):
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue together' and 'mild' in self._recent_vic:
                     self._rescue = 'together'
+                    self._initial_waiting_time = datetime.datetime.now()
                     self._answered = True
                     self._waiting = False
                     # Tell the human to come over and help carry the mildly injured victim
@@ -802,6 +808,7 @@ class BaselineAgent(ArtificialBrain):
                 return Idle.__name__, {'duration_in_ticks': 25}
 
             if Phase.PLAN_PATH_TO_VICTIM == self._phase:
+                print("Planning path to victim")
                 # Plan the path to a found victim using its location
                 self._navigator.reset_full()
                 self._navigator.add_waypoints([self._found_victim_logs[self._goal_vic]['location']])
@@ -809,6 +816,10 @@ class BaselineAgent(ArtificialBrain):
                 self._phase = Phase.FOLLOW_PATH_TO_VICTIM
 
             if Phase.FOLLOW_PATH_TO_VICTIM == self._phase:
+                vics = self.check_for_victims_nearby(state, trustBeliefs)
+                if vics is not None:
+                    return vics
+                print("Following path to victim")
                 # Start searching for other victims if the human already rescued the target victim
                 if self._goal_vic and self._goal_vic in self._collected_victims:
                     self._phase = Phase.FIND_NEXT_GOAL
@@ -824,12 +835,13 @@ class BaselineAgent(ArtificialBrain):
                     self._phase = Phase.TAKE_VICTIM
 
             if Phase.TAKE_VICTIM == self._phase:
+                print("Taking victim")
                 # Store all area tiles in a list
                 room_tiles = [info['location'] for info in state.values()
-                             if 'class_inheritance' in info
-                             and 'AreaTile' in info['class_inheritance']
-                             and 'room_name' in info
-                             and info['room_name'] == self._found_victim_logs[self._goal_vic]['room']]
+                              if 'class_inheritance' in info
+                              and 'AreaTile' in info['class_inheritance']
+                              and 'room_name' in info
+                              and info['room_name'] == self._found_victim_logs[self._goal_vic]['room']]
                 self._roomtiles = room_tiles
                 objects = []
                 # When the victim has to be carried by human and agent together, check whether human has arrived at the victim's location
@@ -847,14 +859,62 @@ class BaselineAgent(ArtificialBrain):
                         self._searched_rooms) == 0 and 'class_inheritance' in info and 'CollectableBlock' in info[
                         'class_inheritance'] and 'mild' in info['obj_id'] and info['location'] in self._roomtiles:
                         objects.append(info)
+                        print("Info", info["name"])
                         # Remain idle when the human has not arrived at the location
                         if not self._human_name in info['name']:
+                            print("Waiting for human")
                             self._waiting = True
                             self._moving = False
+                            time_passed = round((datetime.datetime.now() - self._initial_waiting_time).total_seconds(),
+                                                1)
+                            threshold = 0
+                            if self._distance_human == 'far':
+                                threshold = 16
+                            elif self._distance_human == 'close':
+                                threshold = 13
+                            if time_passed > threshold:
+                                willingness = trustBeliefs[self._human_name]['rescue_mild']['willingness']
+                                instances = trustBeliefs[self._human_name]['rescue_mild']['instances']
+                                willingness = ((willingness * instances) + (
+                                        willingness - 0.01)) / (
+                                                      instances + 1)
+                                trustBeliefs[self._human_name]['rescue_mild']['instances'] += 1
+                                trustBeliefs[self._human_name]['rescue_mild']['willingness'] = willingness
+                                # Restrict the willingness belief to a range of -1 to 1
+                                trustBeliefs[self._human_name]['rescue_mild']['willingness'] = np.clip(
+                                    trustBeliefs[self._human_name]['rescue_mild']['willingness'], -1,
+                                    1)
+                                self.save_to_file(trustBeliefs)
+                                willingness = trustBeliefs[self._human_name]['rescue_mild']['willingness']
+                                decision_threshold = (1 + willingness) / 2
+                                if random.uniform(0, 1) > decision_threshold and time_passed % 3 == 0:
+                                    self._goal_loc = self._goal_locations[self._goal_vic]
+                                    self._phase = Phase.PLAN_PATH_TO_DROPPOINT
+                                    if self._goal_vic not in self._collected_victims:
+                                        self._collected_victims.append(self._goal_vic)
+                                    self._carrying = True
+                                    self._send_message("Carrying victim to droppoint because I have been waiting too long", "RescueBot")
+                                    return CarryObject.__name__, {
+                                        'object_id': self._found_victim_logs[self._goal_vic]['obj_id'],
+                                        'human_name': self._human_name}
+                                else:
+                                    return None, {}
                             return None, {}
+                print("After for loop")
                 # Add the victim to the list of rescued victims when it has been picked up
                 if len(objects) == 0 and 'critical' in self._goal_vic or len(
                         objects) == 0 and 'mild' in self._goal_vic and self._rescue == 'together':
+                    print("Human has arrived")
+                    if 'mild' in self._goal_vic:
+                        willingness = trustBeliefs[self._human_name]['rescue_mild']['willingness']
+                        instances = trustBeliefs[self._human_name]['rescue_mild']['instances']
+                        willingness = ((willingness * instances) + (willingness + 0.1)) / (instances + 1)
+                        trustBeliefs[self._human_name]['rescue_mild']['instances'] += 1
+                        trustBeliefs[self._human_name]['rescue_mild']['willingness'] = willingness
+                        trustBeliefs[self._human_name]['rescue_mild']['willingness'] = np.clip(
+                            trustBeliefs[self._human_name]['rescue_mild']['willingness'], -1,
+                            1)
+                        self.save_to_file(trustBeliefs)
                     self._waiting = False
                     if self._goal_vic not in self._collected_victims:
                         self._collected_victims.append(self._goal_vic)
@@ -901,7 +961,32 @@ class BaselineAgent(ArtificialBrain):
                 self._carrying = False
                 # Drop the victim on the correct location on the drop zone
                 return Drop.__name__, {'human_name': self._human_name}
-        self.save_to_file(self._trustBeliefs)
+
+    def check_for_victims_nearby(self, state, trustBeliefs):
+        for info in state.values():
+            if 'class_inheritance' in info and 'CollectableBlock' in info['class_inheritance']:
+                vic = str(info['img_name'][8:-4])
+                if vic in self._collected_victims and vic not in self._rescued_by_robot:
+                    willingness = trustBeliefs[self._human_name]['rescue_mild']['willingness']
+                    instances = trustBeliefs[self._human_name]['rescue_mild']['instances']
+                    willingness = ((willingness * instances) + (willingness - 0.1)) / (instances + 1)
+                    trustBeliefs[self._human_name]['rescue_mild']['instances'] += 1
+                    trustBeliefs[self._human_name]['rescue_mild']['willingness'] = willingness
+                    trustBeliefs[self._human_name]['rescue_mild']['willingness'] = np.clip(
+                        trustBeliefs[self._human_name]['rescue_mild']['willingness'], -1,
+                        1)
+                    self.save_to_file(trustBeliefs)
+                    if 'mildly' in vic.lower():
+                        self._goal_vic = vic
+                        self._goal_loc = self._goal_locations[self._goal_vic]
+                        self._phase = Phase.PLAN_PATH_TO_DROPPOINT
+                        self._carrying = True
+                        self._rescued_by_robot.append(vic)
+                        return CarryObject.__name__, {
+                            'object_id': info['obj_id'],
+                            'human_name': self._human_name}
+                    else:
+                        return None
 
     def save_to_file(self, trustBeliefs):
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
@@ -1097,20 +1182,12 @@ class BaselineAgent(ArtificialBrain):
             # Increase agent trust in a team member that rescued a victim
             if 'i will remove alone' in message.lower():
                 competence = trustBeliefs[self._human_name]['competence']
-                willingness = trustBeliefs[self._human_name]['remove_objects']['willingness']
-                instances = trustBeliefs[self._human_name]['remove_objects']['instances']
                 competence_instances = trustBeliefs[self._human_name]['competence_instances']
                 competence = ((competence*competence_instances) + (competence+0.1))/(competence_instances+1)
-                willingness = ((willingness*instances) + (willingness+0.1))/(instances+1)
-                trustBeliefs[self._human_name]['remove_objects']['instances'] += 1
-                trustBeliefs[self._human_name]['remove_objects']['willingness'] = willingness
                 trustBeliefs[self._human_name]['competence'] = competence
-                trustBeliefs[self._human_name]['competence_instances'] = competence_instances
+                trustBeliefs[self._human_name]['competence_instances'] += 1
                 # Restrict the competence belief to a range of -1 to 1
                 trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
-                                                                       1)
-                # Restrict the willingness belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['remove_objects']['willingness'] = np.clip(trustBeliefs[self._human_name]['remove_objects']['willingness'], -1,
                                                                        1)
                 room = int(message.split(' ')[-1].strip())
                 self._allegedly_removed_obstacles.append(room)
@@ -1153,6 +1230,30 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs[self._human_name]['competence'] = competence
                     trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
                                                                            1)
+                self._processed_messages.append(message)
+            if 'mildly injured' in message.lower() and 'collect' in message.lower():
+                competence = trustBeliefs[self._human_name]['competence']
+                competence_instances = trustBeliefs[self._human_name]['competence_instances']
+                competence = ((competence * competence_instances) + (competence + 0.1)) / (competence_instances + 1)
+                trustBeliefs[self._human_name]['competence'] = competence
+                trustBeliefs[self._human_name]['competence_instances'] += 1
+                # Restrict the competence belief to a range of -1 to 1
+                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                                                                       1)
+                room = int(message.split(' ')[-1].strip())
+                self._allegedly_removed_obstacles.append(room)
+                self._processed_messages.append(message)
+            if 'mildly injured' in self._send_messages[-1].lower() and len(self._send_messages) > 1:
+                if 'rescue alone' in message.lower():
+                    willingness = trustBeliefs[self._human_name]['rescue_mild']['willingness']
+                    instances = trustBeliefs[self._human_name]['rescue_mild']['instances']
+                    willingness = ((willingness * instances) + (willingness - 0.1)) / (instances + 1)
+                    trustBeliefs[self._human_name]['rescue_mild']['instances'] += 1
+                    trustBeliefs[self._human_name]['rescue_mild']['willingness'] = willingness
+                    trustBeliefs[self._human_name]['remove_mild']['willingness'] = np.clip(
+                        trustBeliefs[self._human_name]['rescue_mild']['willingness'], -1,
+                        1)
+
                 self._processed_messages.append(message)
 
         self.save_to_file(trustBeliefs)
