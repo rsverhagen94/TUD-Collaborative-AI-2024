@@ -436,7 +436,6 @@ class BaselineAgent(ArtificialBrain):
                             -1] == 'Continue' and not self._remove:
                             # Perform competence and willingness check for removal
                             competence_pass = self._passesCompetenceCheckForRemoval()
-                            willingness_pass = self._passesWillingnessCheckForRemoval()
 
                             if competence_pass:
                                 self._answered = True
@@ -444,7 +443,7 @@ class BaselineAgent(ArtificialBrain):
                                 # Add area to the to-do list
                                 self._to_search.append(self._door['room_name'])
                                 self._phase = Phase.FIND_NEXT_GOAL
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name, self._send_message, -1)
                             else:  
                                 # ❌ Human is not trusted → Force removal
                                 self._send_message("Sorry, I don't trust you! I decided to remove the tree anyway!", 'RescueBot')
@@ -684,7 +683,6 @@ class BaselineAgent(ArtificialBrain):
                     -1] == 'Rescue together' and 'mild' in self._recent_vic:
                     # Perform competence and willingness check
                     competence_pass = self._passesCompetenceCheckForRescue()
-                    willingness_pass = self._passesWillingnessCheckForRescue()
 
                     if competence_pass:
                         self._rescue = 'together'
