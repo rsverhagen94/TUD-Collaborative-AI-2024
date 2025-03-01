@@ -887,14 +887,11 @@ class BaselineAgent(ArtificialBrain):
                     # 1 means the area was already searched by the human
                     # 2 means the area was already searched by the agent
                     searched = self.trustService.was_searched(area)
-                    switch(searched):
-                        case 0:
-                            self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
-                            break
-                        case 1: 
-                        case 2: 
-                            self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
-                            break
+
+                    if searched == 0:
+                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
+                    elif searched == 1 or searched == 2:
+                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
                     
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
