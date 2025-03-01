@@ -262,7 +262,7 @@ class BaselineAgent(ArtificialBrain):
                                    and room['room_name'] not in self._to_search]
                 # If all areas have been searched but the task is not finished, start searching areas again
                 if self._remainingZones and len(unsearched_rooms) == 0:
-                    willingness_update = self._compute_searche_willingness_update(self._searched_rooms_claimed_by_human, self._searched_rooms_by_agent)
+                    willingness_update = self._compute_search_willingness_update(self._searched_rooms_claimed_by_human, self._searched_rooms_by_agent)
                     self._trustBelief(state, self._team_members, self._trustBeliefs, self._folder, "search", "willingness", willingness_update)
                     self._to_search = []
                     self._searched_rooms = list(self._searched_rooms_by_agent) # Reset the searched rooms(only includes the ones searched by the agent)
