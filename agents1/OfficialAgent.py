@@ -479,7 +479,7 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
-                            self.trust_service.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
                         # Remove the obstacle alone if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove alone' and not self._remove:
@@ -886,12 +886,12 @@ class BaselineAgent(ArtificialBrain):
                     # 0 means the area has not been searched yet
                     # 1 means the area was already searched by the human
                     # 2 means the area was already searched by the agent
-                    searched = self.trust_service.was_searched(area)
+                    searched = self.trustService.was_searched(area)
                     if searched == 0:
-                        self.trust_service.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
-                        self.trust_service.human_search_room(area)
+                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
+                        self.trustService.human_search_room(area)
                     elif searched in [1, 2]:
-                        self.trust_service.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
+                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
                     
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
@@ -1082,7 +1082,7 @@ class BaselineAgent(ArtificialBrain):
         if not hasattr(self, "trust_service") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
-        competence_value = self.trust_service.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_COMPETENCE, 0.5)
+        competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_COMPETENCE, 0.5)
 
         return random.random() < competence_value
 
@@ -1094,6 +1094,6 @@ class BaselineAgent(ArtificialBrain):
         if not hasattr(self, "trust_service") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
-        willingness_value = self.trust_service.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.5)
+        willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.5)
 
         return random.random() < willingness_value
