@@ -248,6 +248,8 @@ class BaselineAgent(ArtificialBrain):
                     self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name, self._send_message, -1)
                     self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, -1)
                     self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name, self._send_message, -1)
                 # If there are still areas to search, define which one to search next
                 else:
                     # Identify the closest door when the agent did not search any areas yet
@@ -396,7 +398,7 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
-                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
                         # Wait for the human to help removing the obstacle and remove the obstacle together
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
@@ -406,7 +408,7 @@ class BaselineAgent(ArtificialBrain):
                             if not state[{'is_human_agent': True}]:
                                 self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
                                                   'RescueBot')
-                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
@@ -436,7 +438,7 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
-                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
@@ -445,7 +447,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._waiting = False
                                 self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
                                                   'RescueBot')
-                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
                             if self._remove:
                                 self._send_message('Removing tree blocking ' + str(
                                     self._door['room_name']) + ' because you asked me to.', 'RescueBot')
@@ -476,7 +478,7 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
-                            self.trust_service.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            self.trust_service.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
                         # Remove the obstacle alone if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove alone' and not self._remove:
@@ -497,7 +499,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
-                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
@@ -665,8 +667,8 @@ class BaselineAgent(ArtificialBrain):
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue together' and 'mild' in self._recent_vic:
                 # Perform competence and willingness check
-                competence_pass = self._passesCompetenceCheck()
-                willingness_pass = self._passesWillingnessCheck()
+                competence_pass = self._passesCompetenceCheckForRescue()
+                willingness_pass = self._passesWillingnessCheckForRescue()
 
                 if competence_pass and willingness_pass:
                     self._rescue = 'together'
@@ -1074,7 +1076,7 @@ class BaselineAgent(ArtificialBrain):
                 locs.append((x[i], max(y)))
         return locs
     
-    def _passesCompetenceCheck(self):
+    def _passesCompetenceCheckForRescue(self):
         """
         Determines if the human passes the competence check based on their recorded competence trust belief.
         The probability of passing is determined by the competence score.
@@ -1086,7 +1088,7 @@ class BaselineAgent(ArtificialBrain):
 
         return random.random() < competence_value
 
-    def _passesWillingnessCheck(self):
+    def _passesWillingnessCheckForRescue(self):
         """
         Determines if the human passes the willingness check based on their recorded willingness trust belief.
         The probability of passing is determined by the willingness score.
