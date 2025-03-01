@@ -484,7 +484,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._searched_rooms).replace('area ', '') + ' \
                                 \n clock - removal time: 10 seconds', 'RescueBot')
                             self._waiting = True
-                            self._current_prompt = TreeObstacleSession(self, 100)
+                            self._current_prompt = TreeObstacleSession(self, info, 100)
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
@@ -506,7 +506,6 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
                                                   'RescueBot')
                             if self._remove:
-                                # TODO: reward points here because the bot found a tree. isn't this _remove a good way to find out if the bot's being asked to remove something?
                                 self._send_message('Removing tree blocking ' + str(
                                     self._door['room_name']) + ' because you asked me to.', 'RescueBot')
                             self._phase = Phase.ENTER_ROOM
@@ -515,7 +514,7 @@ class BaselineAgent(ArtificialBrain):
                         # Remain idle untill the human communicates what to do with the identified obstacle
                         else:
                             if isinstance(self._current_prompt, PromptSession):
-                                self._current_prompt.wait()
+                                return self._current_prompt.wait()
                             return None, {}
 
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'stone' in \
@@ -532,7 +531,7 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._waiting = True
 
-                            self._current_prompt = StoneObstacleSession(self, 100)
+                            self._current_prompt = StoneObstacleSession(self, info, 100)
 
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
@@ -583,7 +582,7 @@ class BaselineAgent(ArtificialBrain):
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             if isinstance(self._current_prompt, PromptSession):
-                                self._current_prompt.wait()
+                                return self._current_prompt.wait()
                             return None, {}
                 # If no obstacles are blocking the entrance, enter the area
                 if len(objects) == 0:
