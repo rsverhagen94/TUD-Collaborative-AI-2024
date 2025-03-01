@@ -90,7 +90,7 @@ class TrustService:
             ]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
-            for user_id, score in existing_scores.items():
+            for user_id, score in self.trust_scores.items():
                 writer.writerow({
                     'user_id': user_id,
                     'search_willingness': score[TrustBeliefs.SEARCH_WILLINGNESS],
@@ -114,6 +114,16 @@ class TrustService:
         send_message("Trust belief change triggered for user {} with value {} and weight {}".format(user_id, value, weight), 'DEBUG TRUST', True)
         if message:
             send_message("Message: {}".format(message), 'DEBUG TRUST')
+
+        if user_id not in self.trust_scores:
+            self.trust_scores[user_id] = {
+                TrustBeliefs.SEARCH_WILLINGNESS: 0.5,
+                TrustBeliefs.SEARCH_COMPETENCE: 0.5,
+                TrustBeliefs.RESCUE_WILLINGNESS: 0.5,
+                TrustBeliefs.RESCUE_COMPETENCE: 0.5,
+                TrustBeliefs.REMOVE_WILLINGNESS: 0.5,
+                TrustBeliefs.REMOVE_COMPETENCE: 0.5
+            }
 
         # Retrieve the current score for the specified trust belief.
         current_score = self.trust_scores[user_id][trust_belief]
