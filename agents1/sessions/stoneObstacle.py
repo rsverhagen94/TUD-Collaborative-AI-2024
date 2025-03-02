@@ -7,8 +7,8 @@ class StoneObstacleSession(PromptSession):
         WAITING_RESPONSE = 0
         WAITING_HUMAN = 1
 
-    def __init__(self, bot, ttl=-1):
-        super().__init__(bot, ttl)
+    def __init__(self, bot, info, ttl=-1):
+        super().__init__(bot, info, ttl)
         self.currPhase = self.StoneObstaclePhase.WAITING_RESPONSE
 
     def continue_stone(self):
@@ -34,15 +34,6 @@ class StoneObstacleSession(PromptSession):
         self.increment_values("remove_stone", 0.1, 0.2, self.bot)
         self.delete_self()
 
-    def wait(self):
-        if self.ttl % 5 == 0 and self.ttl > 0:
-            print("ttl:", self.ttl)
-
-        if self.ttl > 0:
-            self.ttl -= 1
-        if self.ttl == 0:
-            self.on_timeout()
-
     def on_timeout(self):
         # Figure out what to do depending on the current phase
         if self.currPhase == self.StoneObstaclePhase.WAITING_RESPONSE:
@@ -51,12 +42,14 @@ class StoneObstacleSession(PromptSession):
 
             self.bot._answered = True
             self.bot._waiting = False
-            # Add area to the to do list
-            self.bot._to_search.append(self.bot._door['room_name'])
+            self.bot._send_message('Removing stones blocking ' + str(self.bot._door['room_name']) + '.',
+                               'RescueBot')
+            from agents1.OfficialAgent import Phase, RemoveObject
+            self.bot._phase = Phase.ENTER_ROOM
+            self.bot._remove = False
 
-            from agents1.OfficialAgent import Phase
-            self.bot._phase = Phase.FIND_NEXT_GOAL
             self.delete_self()
+            return RemoveObject.__name__, {'object_id': self.info['obj_id']}
 
         elif self.currPhase == self.StoneObstaclePhase.WAITING_HUMAN:
             print("Timed out waiting for human!")
@@ -64,12 +57,14 @@ class StoneObstacleSession(PromptSession):
 
             self.bot._answered = True
             self.bot._waiting = False
-            # Add area to the to do list
-            self.bot._to_search.append(self.bot._door['room_name'])
+            self.bot._send_message('Removing stones blocking ' + str(self.bot._door['room_name']) + '.',
+                                   'RescueBot')
+            from agents1.OfficialAgent import Phase, RemoveObject
+            self.bot._phase = Phase.ENTER_ROOM
+            self.bot._remove = False
 
-            from agents1.OfficialAgent import Phase
-            self.bot._phase = Phase.FIND_NEXT_GOAL
             self.delete_self()
+            return RemoveObject.__name__, {'object_id': self.info['obj_id']}
 
 
         else:
