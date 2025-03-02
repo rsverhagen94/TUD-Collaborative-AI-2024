@@ -16,6 +16,7 @@ from matrx.messages.message_manager import MessageManager
 from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, DropObjectTogether, CarryObject, Drop
 
 from agents1.sessions.stoneObstacle import StoneObstacleSession
+from agents1.sessions.yellowVictim import YellowVictimSession
 from agents1.eventUtils import PromptSession
 
 class Phase(enum.Enum):
@@ -79,6 +80,9 @@ class BaselineAgent(ArtificialBrain):
 
         # Used when removing stone obstacles
         self._current_prompt = None
+        
+        # Used when Rescuing Yellow Victims
+        self._yellow_victim_session = None
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -113,6 +117,8 @@ class BaselineAgent(ArtificialBrain):
         # print(self._found_victims)
         # print("TODO Victims List:")
         # print(self._todo)
+        
+        # print(self._remove)
                     
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
@@ -694,6 +700,8 @@ class BaselineAgent(ArtificialBrain):
                                         clock - extra time when rescuing alone: 15 seconds \n afstand - distance between us: ' + self._distance_human,
                                                       'RescueBot')
                                     self._waiting = True
+                                    
+                                    self._yellow_victim_session = YellowVictimSession(self, 100)
 
                                 if 'critical' in vic and self._answered == False and not self._waiting:
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue" or "Continue" searching. \n\n \
@@ -747,12 +755,18 @@ class BaselineAgent(ArtificialBrain):
                     self._rescue = 'together'
                     self._answered = True
                     self._waiting = False
+                    
                     # Tell the human to come over and help carry the mildly injured victim
                     if not state[{'is_human_agent': True}]:
+                        self._yellow_victim_session.robot_rescue_together()
+                        
                         self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
                             self._recent_vic) + ' together.', 'RescueBot')
-                    # Tell the human to carry the mildly injured victim together
+                    
+                    # Tell the human to carry the mildly injured victim together (this code gets reached when the human is visible to the robot)
                     if state[{'is_human_agent': True}]:
+                        self._yellow_victim_session.robot_rescue_together()
+                        
                         self._send_message('Lets carry ' + str(
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                             self._recent_vic) + '.', 'RescueBot')
@@ -764,6 +778,8 @@ class BaselineAgent(ArtificialBrain):
                 # Make a plan to rescue the mildly injured victim alone if the human decides so, and communicate this to the human
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue alone' and 'mild' in self._recent_vic:
+                    self._yellow_victim_session.robot_rescue_alone()
+                    
                     self._send_message('Picking up ' + self._recent_vic + ' in ' + self._door['room_name'] + '.',
                                       'RescueBot')
                     self._rescue = 'alone'
@@ -777,6 +793,8 @@ class BaselineAgent(ArtificialBrain):
                     
                 # Continue searching other areas if the human decides so
                 if self.received_messages_content and self.received_messages_content[-1] == 'Continue':
+                    self._yellow_victim_session.robot_continue_rescue()
+                    
                     self._answered = True
                     self._waiting = False
                     self._todo.append(self._recent_vic)
@@ -787,7 +805,11 @@ class BaselineAgent(ArtificialBrain):
                 # Remain idle untill the human communicates to the agent what to do with the found victim
                 if self.received_messages_content and self._waiting and self.received_messages_content[
                     -1] != 'Rescue' and self.received_messages_content[-1] != 'Continue':
+                    if isinstance(self._yellow_victim_session, PromptSession):
+                        self._yellow_victim_session.wait()
                     return None, {}
+                
+                
                 # Find the next area to search when the agent is not waiting for an answer from the human or occupied with rescuing a victim
                 if not self._waiting and not self._rescue:
                     self._recent_vic = None
