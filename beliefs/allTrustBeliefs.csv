@@ -1,2 +1,4 @@
 name;competence;willingness
-;;;
+trustful;1.0;1.0
+liar;0.0;0.0
+uninterested;0.5;0.5

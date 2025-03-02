@@ -1,0 +1,38 @@
+# .gitignore found only for python
+
+# Virtual environment
+venv/
+.env/
+*.venv/
+
+# Python bytecode and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*/__pycache__/
+
+# Logs and debugging
+logs/
+*.log
+log*/
+
+# Environment and dependency management
+Pipfile
+Pipfile.lock
+poetry.lock
+requirements.txt
+
+# IDE and editor-specific files
+.vscode/
+.idea/
+*.swp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
