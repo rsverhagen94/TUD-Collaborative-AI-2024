@@ -1067,8 +1067,6 @@ class DropObjectTogether(Action):
 
         return _act_drop(grid_world, agent=reg_ag, env_obj=env_obj, drop_loc=drop_loc)
 
-
-
 def _is_possible_grab(grid_world, agent_id, object_id, grab_range, max_objects):
     """ Private MATRX method.
     Checks if an :class:`matrx.objects.env_object.EnvObject` can be

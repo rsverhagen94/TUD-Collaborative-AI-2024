@@ -100,8 +100,8 @@ class CustomAgent(ArtificialBrain):
         # Initialize and update trust beliefs for team members
         trustBeliefs = self._loadBelief(self._team_members, self._folder)
         self._trustBelief(self._team_members, trustBeliefs, self._folder, self._received_messages)
-        print(self._overallTrust(trustBeliefs[self._human_name]['search']['competence'], trustBeliefs[self._human_name]['search']['willingness'], 
-                                 trustBeliefs[self._human_name]['rescue']['competence'], trustBeliefs[self._human_name]['rescue']['willingness']))
+        # print(self._overallTrust(trustBeliefs[self._human_name]['search']['competence'], trustBeliefs[self._human_name]['search']['willingness'], 
+        #                          trustBeliefs[self._human_name]['rescue']['competence'], trustBeliefs[self._human_name]['rescue']['willingness']))
         
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
@@ -920,6 +920,7 @@ class CustomAgent(ArtificialBrain):
         with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
             reader = csv.reader(csvfile, delimiter=';', quotechar="'")
             for row in reader:
+                name = self._human_name 
                 if trustfile_header == []:
                     trustfile_header = row
                     continue
@@ -957,17 +958,16 @@ class CustomAgent(ArtificialBrain):
             if 'Collect' in message:
                 trustBeliefs[self._human_name]['rescue']['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['rescue']['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
+                trustBeliefs[self._human_name]['rescue']['competence'] = np.clip(trustBeliefs[self._human_name]['rescue']['competence'], -1,
                                                                        1)
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
+            csv_writer.writerow(['name', 'competence search', 'willingness search', 'competence rescue', 'willingness rescue'])
             csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['search']['competence'],
                                  trustBeliefs[self._human_name]['search']['willingness'],
                                  trustBeliefs[self._human_name]['rescue']['competence'],
-                                 trustBeliefs[self._human_name]['rescue']['willingness'],])
-])
+                                 trustBeliefs[self._human_name]['rescue']['willingness']])
 
         return trustBeliefs
     
