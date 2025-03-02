@@ -728,14 +728,34 @@ class BaselineAgent(ArtificialBrain):
                                 # Communicate which victim the agent found and ask the human whether to rescue the victim now or at a later stage
                                 if 'mild' in vic and self._answered == False and not self._waiting:
                                     self._yellow_victim_session = YellowVictimSession(self, info, 100)
+                                    print("Yellow Victim Session Created")
                                     
+                                    trust_value = self._yellow_victim_session.decision_making()
+                                    print(trust_value)
+                                    
+                                    if trust_value == YellowVictimSession.TrustDecision.LOW_COMPETENCE_AND_LOW_WILLINGNESS:
+                                        print("Low competence and low willingness detected.")
+                                        #add the Return back
+                                        
+                                        self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. I do not trust you to pick them up.', 'RescueBot')
+                                        return self._yellow_victim_session.decision_to_rescue()
+
+                                    if trust_value == YellowVictimSession.TrustDecision.HIGH_COMPETENCE_AND_HIGH_WILLINGNESS:
+                                        print("High competence and high willingness detected.")
+                                        
+                                        self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. I trust you to pick them up.', 'RescueBot')
+                                        return self._yellow_victim_session.decision_to_continue()
+                                        
+                                    # If either Competence or Willingness is low, continue as normal and request      
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue together", "Rescue alone", or "Continue" searching. \n \n \
                                         Important features to consider are: \n safe - victims rescued: ' + str(
                                         self._collected_victims) + '\n explore - areas searched: area ' + str(
                                         self._searched_rooms).replace('area ', '') + '\n \
                                         clock - extra time when rescuing alone: 15 seconds \n afstand - distance between us: ' + self._distance_human,
                                                       'RescueBot')
+                                              
                                     self._waiting = True
+                                    
                                     
                                 if 'critical' in vic and self._answered == False and not self._waiting:
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue" or "Continue" searching. \n\n \

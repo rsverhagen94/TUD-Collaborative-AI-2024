@@ -13,8 +13,8 @@ class YellowVictimSession(PromptSession):
         HIGH_COMPETENCE_AND_HIGH_WILLINGNESS = 2
     
     # Trust Belief Thresholds
-    WILLINGNESS_THRESHOLD = 0.2
-    COMPETENCE_THRESHOLD = 0.6
+    WILLINGNESS_THRESHOLD = 0.7
+    COMPETENCE_THRESHOLD = 0.7
     
     
     def __init__(self, bot, info, ttl=-1):
@@ -64,21 +64,63 @@ class YellowVictimSession(PromptSession):
             
     # Determine which decision the agent should make based on trust values
     def decision_making(self):
-        competence = self.bot.__trustBeliefs[self.bot._human_name]['rescue_yellow']['competence']
-        willingness = self.bot.__trustBeliefs[self.bot._human_name]['rescue_yellow']['willingness']
+        competence = self.bot._trustBeliefs[self.bot._human_name]['rescue_yellow']['competence']
+        willingness = self.bot._trustBeliefs[self.bot._human_name]['rescue_yellow']['willingness']
+        
+        print(f"competence: {competence}")
+        print(f"willingness: {willingness}")
 
         if willingness < self.WILLINGNESS_THRESHOLD and competence < self.COMPETENCE_THRESHOLD:
-            return TrustDecision.LOW_COMPETENCE_AND_LOW_WILLINGNESS
+            return self.TrustDecision.LOW_COMPETENCE_AND_LOW_WILLINGNESS
         
         if willingness >= self.WILLINGNESS_THRESHOLD and competence >= self.COMPETENCE_THRESHOLD:
-            return TrustDecision.HIGH_COMPETENCE_AND_HIGH_WILLINGNESS
-
-        return TrustDecision.HIGH_WILLINGNESS_OR_HIGH_COMPETENCE
+            return self.TrustDecision.HIGH_COMPETENCE_AND_HIGH_WILLINGNESS
+        
+        return self.TrustDecision.HIGH_WILLINGNESS_OR_HIGH_COMPETENCE
         
     
+    def decision_to_rescue(self):
+        if self.bot._door['room_name'] not in self.bot._searched_rooms:
+            self.bot._searched_rooms.append(self.bot._door['room_name'])
+        
+        from agents1.OfficialAgent import Phase
+        
+        self.bot._send_message('Picking up ' + self.bot._recent_vic + ' in ' + self.bot._door['room_name'] + '.', 'RescueBot')
+        self.bot._rescue = 'alone'
+        self.bot._answered = True
+        self.bot._waiting = False
+        
+        self.bot._goal_vic = self.bot._recent_vic
+        self.bot._goal_loc = self.bot._remaining[self.bot._goal_vic]
+        self.bot._recent_vic = None
+        
+        self.bot._phase = Phase.PLAN_PATH_TO_VICTIM
+        
+        self.delete_yellow_victim_session()
+        
+        return None, {}
+    
+    def decision_to_continue(self):
+        if self.bot._door['room_name'] not in self.bot._searched_rooms:
+            self.bot._searched_rooms.append(self.bot._door['room_name'])
+        
+        from agents1.OfficialAgent import Phase
+        
+        self.bot._answered = True
+        self.bot._waiting = False
+        self.bot._todo.append(self.bot._recent_vic)
+        self.bot._recent_vic = None
+        
+        self.bot._phase = Phase.FIND_NEXT_GOAL
+        
+        self.delete_yellow_victim_session()
+
+        return None, {} 
+          
     
     def delete_yellow_victim_session(self):
         self.bot._yellow_victim_session = None
+        print("Yellow Victim Session Deleted")
     
     
     def wait(self):
