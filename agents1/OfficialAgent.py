@@ -936,8 +936,13 @@ class BaselineAgent(ArtificialBrain):
                 if msg.startswith("Search:"):
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
-                        # TODO: make decision on whether to add the area to the memory of searched areas based on the belief of the agent
-                        self._searched_rooms.append(area)
+                        search_willingness = self._trustBeliefs[self._human_name]['search']['willingness']
+                        search_competence = self._trustBeliefs[self._human_name]['search']['competence']
+                        # scale to percentage
+                        prob = (search_willingness + search_competence + 2) * 0.25
+                        # Decision making: add the area to the memory of searched areas based on the probability
+                        if random.random() > prob:
+                            self._searched_rooms.append(area)
                     # always add the area to the memory of searched areas by human for competence evaluation later
                     if area not in self._searched_rooms_claimed_by_human:
                         self._searched_rooms_claimed_by_human.append(area)
