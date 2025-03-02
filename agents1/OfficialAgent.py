@@ -935,13 +935,14 @@ class BaselineAgent(ArtificialBrain):
     '''
     Trust Model
     Each dictionary has actions (as keys) which determine whether the trust value increases or decreases depending on the paramaters in the sub-dictionaries (as values)
+        - task: determines which task to update the trust values for
         - impact: determines the significance of the task (positive for awarding trust and negative for removing trust)
         - weight: determines the significance of each observed repetition of the task (should always be positive)
         - alpha (optional): scales the overall value of the trust (default is 0.05)
         - beta (optional): the exponent of the exponential function used to adjust trust (default is 0.15)
     '''
     COMPETENCE_MODEL = {
-        "rescueSuccess": {"impact": 0.2, "weight": 0.3}
+        "rescueSuccess": {"task": "rescue", "impact": 0.2, "weight": 0.3}
     }
 
     WILLINGNESS_MODEL = {
@@ -956,7 +957,7 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                self._updateTrust(trustBeliefs, "rescue", "rescueSuccess", 1) # Just an example of how to use updateTrust instead of += some number.
+                self._updateTrust(trustBeliefs, "rescueSuccess", 1) # Just an example of how to use updateTrust instead of += some number.
                 #trustBeliefs['rescue']['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
                 #trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
@@ -1083,15 +1084,21 @@ class BaselineAgent(ArtificialBrain):
         return trustBeliefs
 
 
-    def _updateTrust(self, trustBeliefs, task, action, rep=1):
+    def _updateTrust(self, trustBeliefs, action, rep=1):
         '''
         Update the trust values for the given task, based on the given action which is quantified by the number of repetitions
         '''
         deltaCompetence = 0.0
         deltaWillingness = 0.0
+        task = None
 
         if action in self.COMPETENCE_MODEL:
             params = self.COMPETENCE_MODEL[action]
+            task = params["task"]
+            if task not in self.TASKS:
+                print(f"ERROR: Action '{action}' references an invalid task '{task}'. Skipping update.")
+                return
+
             x = params["impact"] * params["weight"] * rep
             alpha = params.get("alpha", 0.05)
             beta = params.get("beta", 0.15)
@@ -1100,13 +1107,18 @@ class BaselineAgent(ArtificialBrain):
 
         if action in self.WILLINGNESS_MODEL:
             params = self.WILLINGNESS_MODEL[action]
+            task = params["task"]
+            if task not in self.TASKS:
+                print(f"ERROR: Action '{action}' references an invalid task '{task}'. Skipping update.")
+                return
+
             x = params["impact"] * params["weight"] * rep
             alpha = params.get("alpha", 0.05)
             beta = params.get("beta", 0.15)
             deltaWillingness = self._exponential(x, alpha, beta)
 
         if action not in self.COMPETENCE_MODEL and action not in self.WILLINGNESS_MODEL:
-            print("WARNING: updateTrust function was called with an unknown action:", action)
+            print(f"WARNING: updateTrust was called with an unknown action '{action}'. Skipping update.")
             return
 
         if deltaCompetence != 0.0:
