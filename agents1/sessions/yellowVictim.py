@@ -12,13 +12,20 @@ class YellowVictimSession(PromptSession):
         HIGH_WILLINGNESS_OR_HIGH_COMPETENCE = 1
         HIGH_COMPETENCE_AND_HIGH_WILLINGNESS = 2
     
-    # Default thresholds
+    # Trust Belief Thresholds
     WILLINGNESS_THRESHOLD = 0.2
     COMPETENCE_THRESHOLD = 0.6
     
-    def __init__(self, bot, ttl=-1):
-        super().__init__(bot, ttl)
+    
+    def __init__(self, bot, info, ttl=-1):
+        super().__init__(bot, info, ttl)
         self.currPhase = self.YellowVictimPhase.WAITING_RESPONSE
+        
+        self._goal_vic = None
+        self._goal_loc = None
+        
+        self.recent_vic = None
+        self.room_name = None
 
     # Factors to adjust Competence and Willingness
     # Robot found a yellow victim
@@ -32,7 +39,7 @@ class YellowVictimSession(PromptSession):
         self.increment_values("rescue_yellow", 0.1, 0, self.bot)
         self.delete_self()
 
-    def robot_rescue_together(self, ttl=100):
+    def robot_rescue_together(self, ttl=20):
         print("Robot Rescue Together heard")
         self.increment_values("rescue_yellow", 0.15, 0, self.bot)
         # Wait for the human
@@ -51,9 +58,9 @@ class YellowVictimSession(PromptSession):
         
 
     def complete_rescue_together(self):
-            print("Completed rescue!")
-            self.increment_values("rescue_yellow", 0.1, 0.2, self.bot)
-            self.delete_self()
+        print("Completed rescue!")
+        self.increment_values("rescue_yellow", 0.1, 0.2, self.bot)
+        self.delete_self()
             
     # Determine which decision the agent should make based on trust values
     def decision_making(self):
@@ -68,14 +75,36 @@ class YellowVictimSession(PromptSession):
 
         return TrustDecision.HIGH_WILLINGNESS_OR_HIGH_COMPETENCE
         
+    
+    
+    def delete_yellow_victim_session(self):
+        self.bot._yellow_victim_session = None
+    
+    
     def wait(self):
         if self.ttl % 5 == 0 and self.ttl > 0:
             print("ttl:", self.ttl)
 
+        if self.bot._recent_vic is not None and self._goal_vic is None:
+            self._goal_vic = self.bot._recent_vic
+        
+        if self.bot._goal_vic is not None and self.bot._goal_vic in self.bot._remaining:
+            if self.bot._remaining[self.bot._goal_vic] is not None and self._goal_loc is None:
+                self._goal_loc = self.bot._remaining[self.bot._goal_vic]
+                
+        if self.bot._recent_vic is not None and self.recent_vic is None:
+            self.recent_vic = self.bot._recent_vic
+            
+        if self.bot._door['room_name'] is not None and self.room_name is None:
+            self.room_name = self.bot._door['room_name']
+        
         if self.ttl > 0:
             self.ttl -= 1
         if self.ttl == 0:
-            self.on_timeout()
+            return self.on_timeout()
+            
+        ####
+        return 0   
 
     def on_timeout(self):
         # Figure out what to do depending on the current phase
@@ -83,27 +112,52 @@ class YellowVictimSession(PromptSession):
             print("Timed out waiting for response!")
             self.increment_values("rescue_yellow", -0.15, -0.15, self.bot)
 
-            self.bot._answered = True
-            self.bot._waiting = False
-            # Add area to the to do list
-            self.bot._to_search.append(self.bot._door['room_name'])
-
             from agents1.OfficialAgent import Phase
-            self.bot._phase = Phase.FIND_NEXT_GOAL
-            self.delete_self()
-
+            self.bot._send_message('Picking up ' + self.bot._recent_vic + ' in ' + self.bot._door['room_name'] + '.',
+                                'RescueBot')
+            self.bot._rescue = 'alone'
+            
+            # Change to True if this causes issues:
+            self.bot._answered = True
+            #
+            
+            self.bot._waiting = False
+            self.bot._goal_vic = self.bot._recent_vic
+            self.bot._goal_loc = self.bot._remaining[self.bot._goal_vic]
+            self.bot._recent_vic = None
+            self.bot._phase = Phase.PLAN_PATH_TO_VICTIM
+           
+            self.delete_yellow_victim_session()
+            
+            #####
+            return 1
+                    
         elif self.currPhase == self.YellowVictimPhase.WAITING_HUMAN:
             print("Timed out waiting for human!")
             self.increment_values("rescue_yellow", -0.1, 0, self.bot)
 
-            self.bot._answered = True
-            self.bot._waiting = False
-            # Add area to the to do list
-            self.bot._to_search.append(self.bot._door['room_name'])
-
             from agents1.OfficialAgent import Phase
-            self.bot._phase = Phase.FIND_NEXT_GOAL
-            self.delete_self()
+            
+            self.bot._rescue = 'alone'
+            
+            self.bot._send_message('Picking up ' + self.recent_vic + ' in ' + self.room_name + '.',
+                                'RescueBot')
+                
+            # Change to True if this causes issues:
+            self.bot._answered = True
+            # 
+            
+            self.bot._waiting = False
+            self.bot._goal_vic = self._goal_vic
+            self.bot._goal_loc = self._goal_loc
+            self.bot._recent_vic = None
+            
+            self.bot._phase = Phase.PLAN_PATH_TO_VICTIM
+            
+            self.delete_yellow_victim_session()
+            
+            ####
+            return 1
 
 
         else:
