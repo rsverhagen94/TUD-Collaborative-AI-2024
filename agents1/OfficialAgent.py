@@ -478,6 +478,11 @@ class BaselineAgent(ArtificialBrain):
                         objects.append(info)
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
+                            # Trust Check
+                            decision = TreeObstacleSession.process_trust(self, info)
+                            # If decision is None, we trust the human and generate the prompt
+                            if decision is not None:
+                                return decision
                             self._send_message('Found tree blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + '\n explore - areas searched: area ' + str(
@@ -522,7 +527,12 @@ class BaselineAgent(ArtificialBrain):
                         objects.append(info)
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
-                            # Stones
+                            # Trust Check
+                            decision = StoneObstacleSession.process_trust(self, info)
+                            # If decision is None, we trust the human and generate the prompt
+                            if decision is not None:
+                                return decision
+
                             self._send_message('Found stones blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove together", "Remove alone", or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + ' \n explore - areas searched: area ' + str(

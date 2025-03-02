@@ -11,6 +11,28 @@ class StoneObstacleSession(PromptSession):
         super().__init__(bot, info, ttl)
         self.currPhase = self.StoneObstaclePhase.WAITING_RESPONSE
 
+    @staticmethod
+    def process_trust(bot, info):
+        LOW_COMPETENCE_THRESHOLD = 0.1
+        LOW_WILLINGNESS_THRESHOLD = 0.1
+
+        if(bot._trustBeliefs[bot._human_name]['remove_stone']['competence'] > LOW_COMPETENCE_THRESHOLD):
+            return None
+
+        if (bot._trustBeliefs[bot._human_name]['remove_stone']['willingness'] > LOW_WILLINGNESS_THRESHOLD):
+            return None
+
+        # If we have low competence and willingness beliefs for the human, remove the stone immediately
+        bot._answered = True
+        bot._waiting = False
+        bot._send_message('Removing stones blocking ' + str(bot._door['room_name']) + '.',
+                               'RescueBot')
+        from agents1.OfficialAgent import Phase, RemoveObject
+        bot._phase = Phase.ENTER_ROOM
+        bot._remove = False
+
+        return RemoveObject.__name__, {'object_id': info['obj_id']}
+
     def continue_stone(self):
         print("Continue Stone heard")
         self.increment_values("remove_stone", -0.1, 0, self.bot)
