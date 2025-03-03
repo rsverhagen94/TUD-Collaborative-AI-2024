@@ -76,6 +76,7 @@ class BaselineAgent(ArtificialBrain):
         self._received_messages = []
         self._moving = False
         self._empty_rooms = []
+        self._human_searched_rooms = []
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -238,13 +239,24 @@ class BaselineAgent(ArtificialBrain):
                                    and room['room_name'] not in self._to_search]
                 # If all areas have been searched but the task is not finished, start searching areas again
                 if self._remainingZones and len(unsearched_rooms) == 0:
-                    self._to_search = []
-                    self._searched_rooms = []
-                    self._send_messages = []
-                    self.received_messages = []
-                    self.received_messages_content = []
-                    self._send_message('Going to re-search all areas.', 'RescueBot')
-                    self._phase = Phase.FIND_NEXT_GOAL
+                    if self._human_searched_rooms:
+                        self._to_search = []
+                        for room in self._human_searched_rooms:
+                            if room in self._searched_rooms:
+                                self._searched_rooms.remove(room)
+                        self._send_messages = []
+                        self.received_messages = []
+                        self.received_messages_content = []
+                        self._send_message('Going to re-search all areas that my human teammate searched before.', 'RescueBot')
+                        self._phase = Phase.FIND_NEXT_GOAL
+                    else:
+                        self._to_search = []
+                        self._searched_rooms = []
+                        self._send_messages = []
+                        self.received_messages = []
+                        self.received_messages_content = []
+                        self._send_message('Going to re-search all areas.', 'RescueBot')
+                        self._phase = Phase.FIND_NEXT_GOAL
                     self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
                     self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name, self._send_message, -1)
                     self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, -1)
@@ -937,6 +949,9 @@ class BaselineAgent(ArtificialBrain):
                     if searched == 0:
                         self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
                         self.trustService.human_search_room(area)
+
+                        if area not in self._human_searched_rooms:
+                            self._human_searched_rooms.append(area)
                     elif area in self._empty_rooms:
                         self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
 
