@@ -43,7 +43,7 @@ class StoneObstacleSession(PromptSession):
         self.increment_values("remove_stone", 0.1, 0, self.bot)
         self.delete_self()
 
-    def remove_together(self, ttl=100):
+    def remove_together(self, ttl=400):
         print("Remove Together heard")
         self.increment_values("remove_stone", 0.15, 0, self.bot)
         # Wait for the human
