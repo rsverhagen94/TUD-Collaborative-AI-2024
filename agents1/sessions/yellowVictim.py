@@ -14,7 +14,7 @@ class YellowVictimSession(PromptSession):
     
     # Trust Belief Thresholds
     WILLINGNESS_THRESHOLD = 0.7
-    COMPETENCE_THRESHOLD = 0.7
+    COMPETENCE_THRESHOLD = 0.0
     
     
     def __init__(self, bot, info, ttl=-1):
@@ -39,7 +39,7 @@ class YellowVictimSession(PromptSession):
         self.increment_values("rescue_yellow", 0.1, 0, self.bot)
         self.delete_self()
 
-    def robot_rescue_together(self, ttl=20):
+    def robot_rescue_together(self, ttl=50):
         print("Robot Rescue Together heard")
         self.increment_values("rescue_yellow", 0.15, 0, self.bot)
         # Wait for the human
@@ -47,6 +47,12 @@ class YellowVictimSession(PromptSession):
         # Reset ttl
         self.ttl = ttl
   
+    
+    def human_showed_up(self):
+        print("Human showed up on time to rescue Yellow Victim together")
+        self.increment_values("rescue_yellow", 0.0, 0.1, self.bot)
+    
+    
     # Human found a yellow victim       
     def human_found_alone(self):
         pass
@@ -175,7 +181,7 @@ class YellowVictimSession(PromptSession):
             return 1
                     
         elif self.currPhase == self.YellowVictimPhase.WAITING_HUMAN:
-            print("Timed out waiting for human!")
+            print("Timed out waiting for human! Human Didn't show up!")
             self.increment_values("rescue_yellow", -0.1, 0, self.bot)
 
             from agents1.OfficialAgent import Phase

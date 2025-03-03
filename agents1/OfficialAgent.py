@@ -84,6 +84,7 @@ class BaselineAgent(ArtificialBrain):
         
         # Used when Rescuing Yellow Victims
         self._yellow_victim_session = None
+        self._number_of_yellow_victims_saved = 0
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -159,9 +160,10 @@ class BaselineAgent(ArtificialBrain):
                 info['is_carrying']) > 0 and 'mild' in info['is_carrying'][0][
                 'obj_id'] and self._rescue == 'together' and not self._moving:
                     
-                #
+                # Human Showed Up
                 if 'mild' in info['is_carrying'][0]['obj_id']:
                     if isinstance(self._yellow_victim_session, PromptSession):
+                        self._number_of_yellow_victims_saved += 1
                         self._yellow_victim_session.delete_yellow_victim_session()
                 #
                         
@@ -951,7 +953,7 @@ class BaselineAgent(ArtificialBrain):
                         objects) == 0 and 'mild' in self._goal_vic and self._rescue == 'together':
                     
                     if 'mild' in self._goal_vic:
-                        print("PICKED UP 2")
+                        print("Dropped Yellow Victim Together")
                     
                     self._waiting = False
                     if self._goal_vic not in self._collected_victims:
@@ -1066,6 +1068,7 @@ class BaselineAgent(ArtificialBrain):
                     # Add the found victim to the to do list when the human's condition is not 'weak'
                     if 'mild' in foundVic and condition != 'weak':
                         self._todo.append(foundVic)
+                
                 # If a received message involves team members rescuing victims, add these victims and their locations to memory
                 if msg.startswith('Collect:'):
                     # Identify which victim and area it concerns
@@ -1074,21 +1077,34 @@ class BaselineAgent(ArtificialBrain):
                     else:
                         collectVic = ' '.join(msg.split()[1:5])
                     loc = 'area ' + msg.split()[-1]
+                    
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
                         self._searched_rooms.append(loc)
+                    
                     # Add the victim and location to the memory of found victims
                     if collectVic not in self._found_victims:
                         self._found_victims.append(collectVic)
                         self._found_victim_logs[collectVic] = {'room': loc}
                     if collectVic in self._found_victims and self._found_victim_logs[collectVic]['room'] != loc:
                         self._found_victim_logs[collectVic] = {'room': loc}
+                    
                     # Add the victim to the memory of rescued victims when the human's condition is not weak
                     if condition != 'weak' and collectVic not in self._collected_victims:
+                        # Human responsible for collecting this yellow victim
+                        if 'mild' in collectVic:
+                            self._number_of_yellow_victims_saved += 1
+                            
                         self._collected_victims.append(collectVic)
+                        
+                    # Human "lied" about picking up an already picked up victim
+                    # ADD CASE!!    
+                    
                     # Decide to help the human carry the victim together when the human's condition is weak
                     if condition == 'weak':
+                        # Dont increment self._number_of_yellow_victims_saved, beucase it happens after the robot has arrvied, right????????
                         self._rescue = 'together'
+                
                 # If a received message involves team members asking for help with removing obstacles, add their location to memory and come over
                 if msg.startswith('Remove:'):
                     # Come over immediately when the agent is not carrying a victim
