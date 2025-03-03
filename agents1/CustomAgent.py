@@ -858,6 +858,7 @@ class CustomAgent(ArtificialBrain):
                         collectVic = ' '.join(msg.split()[1:5])
                     loc = 'area ' + msg.split()[-1]
                     # Add the area to the memory of searched areas
+                    # WORK HERE
                     if loc not in self._searched_rooms:
                         self._searched_rooms.append(loc)
                     # Add the victim and location to the memory of found victims
@@ -947,11 +948,18 @@ class CustomAgent(ArtificialBrain):
                     }
         return trustBeliefs
 
-    # we will have to find a way to balance both willingness and compentence based on the agent's actions
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
+        # Initialize trust beliefs for human if not already present
+        if self._human_name not in trustBeliefs:
+            default = 0.5
+            trustBeliefs[self._human_name] = {
+                'search': {'competence': default, 'willingness': default},
+                'rescue': {'competence': default, 'willingness': default}
+            }
+
         # Update the trust value based on for example the received messages
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
