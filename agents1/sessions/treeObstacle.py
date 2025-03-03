@@ -7,9 +7,9 @@ class TreeObstacleSession(PromptSession):
 
     @staticmethod
     def process_trust(bot, info):
-        if super().scenario_used == Scenario.ALWAYS_TRUST:
+        if PromptSession.scenario_used == Scenario.ALWAYS_TRUST:
             return None
-        elif super().scenario_used == Scenario.NEVER_TRUST:
+        elif PromptSession.scenario_used == Scenario.NEVER_TRUST:
             bot._answered = True
             bot._waiting = False
             bot._send_message('Removing tree blocking ' + str(bot._door['room_name']) + '.',
