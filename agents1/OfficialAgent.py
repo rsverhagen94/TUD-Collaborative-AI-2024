@@ -75,6 +75,7 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
+        self._empty_rooms = []
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -398,7 +399,10 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
-                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            if self._distance_human == 'close':
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1, 0.2)
+                            else:
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1, 0.1)
                         # Wait for the human to help removing the obstacle and remove the obstacle together
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
@@ -408,7 +412,10 @@ class BaselineAgent(ArtificialBrain):
                             if not state[{'is_human_agent': True}]:
                                 self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
                                                   'RescueBot')
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message)
+                                if self._distance_human=='close':
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
+                                else:
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
                                 return None, {}
                             
                             # Tell the human to remove the obstacle when he/she arrives
@@ -503,6 +510,8 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
+                            if self._distance_human == 'close':
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1, 0.1)
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
@@ -514,7 +523,10 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
+                                if self._distance_human == 'far':
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+                                else:
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
@@ -643,6 +655,11 @@ class BaselineAgent(ArtificialBrain):
                                     self._waiting = True
                                     # Execute move actions to explore the area
                     return action, {}
+                if action is None:
+                    # Check if any victims were found in this room
+                    if not self._room_vics:  # Room is empty (no victims)
+                        if self._door['room_name'] not in self._empty_rooms:
+                            self._empty_rooms.append(self._door['room_name'])
 
                 # Communicate that the agent did not find the target victim in the area while the human previously communicated the victim was located here
                 if self._goal_vic in self._found_victims and self._goal_vic not in self._room_vics and \
@@ -650,6 +667,8 @@ class BaselineAgent(ArtificialBrain):
                     self._send_message(self._goal_vic + ' not present in ' + str(self._door[
                                                                                     'room_name']) + ' because I searched the whole area without finding ' + self._goal_vic + '.',
                                       'RescueBot')
+                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, 1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
                     # Remove the victim location from memory
                     self._found_victim_logs.pop(self._goal_vic, None)
                     self._found_victims.remove(self._goal_vic)
@@ -675,6 +694,10 @@ class BaselineAgent(ArtificialBrain):
                         self._send_message('Lets carry ' + str(
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                             self._recent_vic) + '.', 'RescueBot')
+                        if self._distance_human == 'far':
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+                        else:
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
                     self._goal_vic = self._recent_vic
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
@@ -697,6 +720,11 @@ class BaselineAgent(ArtificialBrain):
                             self._send_message('Lets carry ' + str(
                                 self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                                 self._recent_vic) + '.', 'RescueBot')
+                            if self._distance_human == 'far':
+                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+                            else:
+                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
+
                         self._goal_vic = self._recent_vic
                         self._recent_vic = None
                         self._phase = Phase.PLAN_PATH_TO_VICTIM
@@ -723,6 +751,8 @@ class BaselineAgent(ArtificialBrain):
                     self._goal_loc = self._remaining[self._goal_vic]
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
+                    if self._distance_human == 'close':
+                        self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, 1, 0.1)
                 # Continue searching other areas if the human decides so
                 if self.received_messages_content and self.received_messages_content[-1] == 'Continue':
                     self._answered = True
@@ -736,7 +766,8 @@ class BaselineAgent(ArtificialBrain):
                             TrustBeliefs.RESCUE_WILLINGNESS, 
                             self._human_name, 
                             self._send_message, 
-                            -1,  
+                            -1,
+                            0.2,
                             message = "Human ignored a critically injured victim in need of rescue."
                         )
                     elif 'mild' in self._recent_vic:
@@ -745,7 +776,8 @@ class BaselineAgent(ArtificialBrain):
                             TrustBeliefs.RESCUE_WILLINGNESS, 
                             self._human_name, 
                             self._send_message, 
-                            -1,  
+                            -1,
+                            0.1,
                             message="Human ignored a mildly injured victim in need of rescue."
                         )
                     self._recent_vic = None
@@ -905,15 +937,15 @@ class BaselineAgent(ArtificialBrain):
                     if searched == 0:
                         self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_WILLINGNESS, self._human_name, self._send_message, 1)
                         self.trustService.human_search_room(area)
-                    elif searched in [1, 2]:
+                    elif area in self._empty_rooms:
                         self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
-                    
+
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
-                        
+
                 # If a received message involves team members finding victims, add these victims and their locations to memory
                 if msg.startswith("Found:"):
-                    # Identify which victim and area it concerns
+                    # Identify which victim and area it concernsb
                     if len(msg.split()) == 6:
                         foundVic = ' '.join(msg.split()[1:4])
                     else:

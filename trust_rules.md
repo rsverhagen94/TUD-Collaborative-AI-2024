@@ -1,14 +1,24 @@
 The trust will be lowered in the following phases/situations:
     - PICK_UNSEARCHED_ROOM:
-        - when the agent has to re-search all the rooms, the all values are lowered
+        - when the agent has to re-search all the rooms, all the values are lowered
     - REMOVE_OBSTACLE_IF_NEEDED:
-        - when the human refuses to help the agent remove a rock, the rescue willingness is lowered
-        - when the human wants to help the agent remove a rock, the rescue willingness is increased
-        - when the human refuses to help the agent remove a tree, the rescue willingness is lowered
-        - when the human wants to help the agent remove a tree, the rescue willingness is increased
-        - when the human refuses to help the agent remove a stone, the rescue willingness is lowered
-        - when the human wants to help the agent remove a stone, the rescue willingness is increased
+        - when the human refuses to help the agent remove a ROCK, remove willingness is lowered based on the human's distance to the robot
+        - when the human wants to help the agent remove a ROCK, the rescue willingness is increased based on the human's distance to the robot
+        - when the human refuses to help the agent remove a TREE, the remove willingness is lowered
+        - when the human wants to help the agent remove a TREE, the remove willingness is increased
+        - when the human refuses to help the agent remove a STONE, the remove willingness is lowered based on the human's distance to the robot
+        - when the human wants to help the agent remove a STONE, the remove willingness is increased based on the human's distance to the robot
     - FOLLOW_ROOM_SEARCH_PATH
         - if human tells agent a victim is in a room and the victim was actually there, the rescue willingness and search competence + willingness go up
+        - for critically injured victims:
+            - when the human decides to help rescue the victim together, the rescue willingness is increased based on the human's distance to the robot
+        - for mildly injured victims:
+            - when the human decides to help rescue the victim together and passes competence check, the rescue willingness is increased based on the human's distance to the robot
+        - when the human ignores a victim:
+            - for critically injured victims, a stronger negative impact on rescue willingness
+            - for mildly injured victims, a smaller negative impact on rescue willingness
+        - when the human lies about a victim being in a room, and the robot catches him, search competence and rescue willingness are decreased
     - TAKE_VICTIM
         - when carrying together, rescue willingess + competence go up
+    - When the human searches a room that was already searched by the human/robot and is declared as EMPTY, the search competence is decreased
+    - When the human searches a new area, the search competence is increased
