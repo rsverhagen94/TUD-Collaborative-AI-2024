@@ -40,7 +40,7 @@ class Phase(enum.Enum):
 
 
 class BaselineAgent(ArtificialBrain):
-    TASKS = ["search rooms", "destroy obstacles", "rescue"]
+    TASKS = ["search", "clear", "rescue"]
 
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
@@ -942,11 +942,28 @@ class BaselineAgent(ArtificialBrain):
         - beta (optional): the exponent of the exponential function used to adjust trust (default is 0.15)
     '''
     COMPETENCE_MODEL = {
-        "rescueSuccess": {"task": "rescue", "impact": 0.2, "weight": 0.3}
+        "rescue_victim":                 {"task": "rescue", "impact": 1.0, "weight": 1.0},
+        "help_carry_critical_victim":    {"task": "rescue", "impact": 0.8, "weight": 0.3},
+        "carry_victim_alone":            {"task": "rescue", "impact": 0.6, "weight": 0.3}, # Award because RescueBot carrying alone is always slower
+        "find_victim":                   {"task": "search", "impact": 0.5, "weight": 1.0},
+        "remove_obstacle_together_near": {"task": "clear", "impact": 0.4, "weight": 0.5}, # Award oppertunistic choice
+        "search_finished_rooms":         {"task": "search", "impact": -0.2, "weight": 0.7},
+        "remove_obstacle_together_far":  {"task": "clear", "impact": -0.5, "weight": 0.6}, # Penalise for making robot waste time on traversal
+        "prioritise_mild_over_critical": {"task": "rescue", "impact": -0.7, "weight": 0.8}
     }
 
     WILLINGNESS_MODEL = {
-
+        "help_remove_obstacle":          {"task": "clear", "impact": 0.8, "weight": 0.9},
+        "remove_obstacle":               {"task": "clear", "impact": 0.8, "weight": 0.6},
+        "request_help_obstacle":         {"task": "clear", "impact": 0.6, "weight": 0.4},
+        "search_room":                   {"task": "search", "impact": 0.5, "weight": 0.3},
+        "carry_victim_intent":            {"task": "search", "impact": 0.4, "weight": 0.5},
+        "search_room_intent":            {"task": "search", "impact": 0.3, "weight": 0.2},
+        "idle":                          {"task": "search", "impact": -0.1, "weight": 0.1},
+        "ignore":                        {"task": "clear", "impact": -0.2, "weight": 0.2},
+        "lie_searching":                 {"task": "clear", "impact": -0.5, "weight": 1.0},
+        "lie_victim_found":              {"task": "clear", "impact": -0.8, "weight": 1.0},
+        "abandom_victim_transport":      {"task": "rescue", "impact": -1.0, "weight": 1.0},
     }
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
@@ -957,12 +974,10 @@ class BaselineAgent(ArtificialBrain):
         for message in receivedMessages:
             # Increase agent trust in a team member that rescued a victim
             if 'Collect' in message:
-                self._updateTrust(trustBeliefs, "rescueSuccess", 1) # Just an example of how to use updateTrust instead of += some number.
+                self._updateTrust(trustBeliefs, "rescue_victim", 1) # Just an example of how to use updateTrust instead of += some number.
                 #trustBeliefs['rescue']['competence'] += 0.10
                 # Restrict the competence belief to a range of -1 to 1
                 #trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
-        
-        # Save current trust belief values so we can later use and retrieve them to add to a json file with all the logged trust belief values
 
         victim_types = [
         "critically injured girl",
@@ -1078,6 +1093,7 @@ class BaselineAgent(ArtificialBrain):
                     elif 'obstacle' in current_msg:
                         trustBeliefs['search']['competence'] -= 0.3
 
+        # Save current trust belief values so we can later use and retrieve them to add to a json file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
             json.dump(trustBeliefs, file, indent=4)
 
