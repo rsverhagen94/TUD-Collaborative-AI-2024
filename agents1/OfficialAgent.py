@@ -350,6 +350,7 @@ class BaselineAgent(ArtificialBrain):
                     
                 agent_location = state[self.agent_id]['location']
                 # Identify which areas are not explored yet
+                #TODO: Union of (searched_rooms: searched_rooms_by_agent ++ searched_rooms_claimed_by_human(with probability), inferred_searched_rooms_from_collect, inferred_searched_rooms_from_found)
                 unsearched_rooms = [room['room_name'] for room in state.values()
                                    if 'class_inheritance' in room
                                    and 'Door' in room['class_inheritance']
@@ -1140,10 +1141,9 @@ class BaselineAgent(ArtificialBrain):
                 if msg.startswith("Search:") and msg not in self._consumed_messages:
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
-                        search_willingness = self._trustBeliefs[self._human_name]['search']['willingness']
                         search_competence = self._trustBeliefs[self._human_name]['search']['competence']
                         # scale to percentage
-                        prob = (search_willingness + search_competence + 2) * 0.25
+                        prob = (search_competence + 1) * 0.5
                         # Decision making: add the area to the memory of searched areas based on the probability
                         rand = random.random() #TODO: what distribution to use?
                         if rand > prob:
@@ -1163,7 +1163,6 @@ class BaselineAgent(ArtificialBrain):
                     loc = 'area ' + msg.split()[-1]
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
-                        # TODO: based on the belief of the agent, decide whether to add the area to the memory of searched areas
                         self._searched_rooms.append(loc)
                         # TODO: make a list of areas that have been searched by the human(inferred from the 'Found' messages)
                     # Add the victim and its location to memory
@@ -1191,7 +1190,7 @@ class BaselineAgent(ArtificialBrain):
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
                         # TODO: For collect we might need to create a different list of searched rooms(inferred search), since this is a different task
-                        self._searched_rooms.append(loc)
+                        self._searched_rooms.append(loc) #TODO: make an inferred searched rooms from collect, and change the condition for re-searching
                     
                     # Add the victim and location to the memory of found victims
                     if collectVic not in self._found_victims:
