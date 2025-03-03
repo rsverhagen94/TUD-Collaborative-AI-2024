@@ -17,7 +17,7 @@ from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, Dr
 
 from agents1.sessions.stoneObstacle import StoneObstacleSession
 from agents1.sessions.treeObstacle import TreeObstacleSession
-from agents1.eventUtils import PromptSession
+from agents1.eventUtils import PromptSession, Scenario
 
 class Phase(enum.Enum):
     INTRO = 1,
@@ -78,7 +78,7 @@ class BaselineAgent(ArtificialBrain):
         self._moving = False
         self._trustBeliefs = None # Only load the trust beliefs once
 
-        # Used when removing stone obstacles
+        # Used for managing prompts
         self._current_prompt = None
 
     def initialize(self):
@@ -122,6 +122,12 @@ class BaselineAgent(ArtificialBrain):
         # Initialize and update trust beliefs for team members
         if self._trustBeliefs == None:
             self._trustBeliefs = self._loadBelief(self._team_members, self._folder)
+
+        # Initialize random values for each task if the random baseline is used
+        if PromptSession.scenario_used == Scenario.RANDOM_TRUST:
+            for task in self._tasks:
+                self._trustBeliefs[self._human_name][task]['competence'] = np.random.uniform(-1, 1)
+                self._trustBeliefs[self._human_name][task]['willingness'] = np.random.uniform(-1, 1)
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
