@@ -7,225 +7,177 @@ class RedVictimSession(PromptSession):
         WAITING_RESPONSE = 0
         WAITING_HUMAN = 1
 
-    # Decision is always the same regardless of trust values but kept for consistency
-    class TrustDecision(enum.Enum):
-        ASK_HUMAN = 0
-
     # Trust Belief Thresholds
     WILLINGNESS_THRESHOLD = 0.7
     COMPETENCE_THRESHOLD = 0.7
-
-    # For time estimation
-    AVERAGE_MOVE_TIME_PER_TILE = 0.5
     
     def __init__(self, bot, info, ttl=-1):
         super().__init__(bot, info, ttl)
         self.currPhase = self.RedVictimPhase.WAITING_RESPONSE
         
-        # Internal flags
-        self.rescue_in_progress = False
-        self.rescue_time = 50  # e.g. # of ticks needed to 'carry' the victim together
+        self._goal_vic = None
+        self._goal_loc = None
         
-        # For trust-based logic
+        self.recent_vic = None
+        self.room_name = None
+        
+        # For measuring how long the rescue takes
+        self.rescue_start_time = None
         self.pickup_location = None
-        self.goal_vic = None
-        self.goal_loc = None
-        
-        # We store the name for clarity if needed
-        self.victim_name = info['obj_id']
-        
-        print("Red Victim Session Created")
+        self.estimated_delivery_time = None
 
-    # Robot found a red victim    
-    def robot_continue_rescue(self):
-        # Robot continues (or is forced to move on) without human intervention
-        print("Robot Continue Rescue for Red Victim")
-        self.increment_values("rescue_red", -0.1, 0, self.bot)
-        self.delete_self()
-        
-    def robot_rescue_together(self, ttl=20):
-        # Human responded 'Rescue'
+    def robot_rescue_together(self, ttl=100):
+        """
+        User responded 'Rescue' on a critically injured Red Victim.
+        This is roughly analogous to 'rescueYellow' => 'Rescue Together'.
+        """
         print("Robot Rescue Together heard")
+        
+        # Increase Willingness slightly for Red Victim
         self.increment_values("rescue_red", 0.15, 0, self.bot)
-        # Wait for the human
+        
+        # If we want to do a path planning, let's store the victim & location right now:
+        if self.bot._recent_vic is not None:
+            self._goal_vic = self.bot._recent_vic
+        # Also store it in the agent, if your agent logic uses self.bot._goal_vic / _goal_loc
+        self.bot._goal_vic = self._goal_vic
+
+        if self._goal_vic in self.bot._remaining:
+            self._goal_loc = self.bot._remaining[self._goal_vic]
+            self.bot._goal_loc = self._goal_loc
+
+        # We switch the session phase to waiting for the human to come or to physically join
         self.currPhase = self.RedVictimPhase.WAITING_HUMAN
-        # Reset TTL to wait for the human
         self.ttl = ttl
-        # Record start time for delivery time tracking
         self.rescue_start_time = time.time()
-        # Save pickup location for distance calculation
-        if self.bot.state:
-            self.pickup_location = (self.bot.state['location'][0], self.bot.state['location'][1])
-        # Estimate delivery time based on Manhattan distance
+        
+        # Optionally: fetch the robot's location so we can do time/distance-based computations
+        my_loc = None
+        if "location" in self.bot.agent_properties and self.bot.agent_properties["location"] is not None:
+            my_loc = self.bot.agent_properties["location"]  # e.g. (x,y)
+        # or: my_loc = self.bot.state[self.bot.agent_id]['location'] if guaranteed in partial observation
+        
+        if my_loc:
+            print("My current location:", my_loc)
+            self.pickup_location = tuple(my_loc)
+        
+        print("Goal victim:", self._goal_vic)
+        print("Goal location:", self._goal_loc)
+        print("Pickup location:", self.pickup_location)
+
+        # If you want to estimate delivery time from pickup to the goal:
         if self._goal_loc and self.pickup_location:
-            self.estimated_delivery_time = self.estimate_delivery_time(self.pickup_location, self._goal_loc)
+            self.estimated_delivery_time = self.estimate_delivery_time(
+                self.pickup_location, self._goal_loc
+            )
             print(f"Estimated delivery time: {self.estimated_delivery_time:.2f} seconds")
 
-    # Human found a red victim
-    def human_found_red_victim(self):
-        pass
-
-    def human_rescue_together(self):
-        pass
+    def robot_continue_rescue(self):
+        """User responded 'Continue' => they do NOT want to rescue the Red Victim now."""
+        print("Robot Continue Rescue heard")
+        # Decrease Willingness for ignoring the Red Victim
+        self.increment_values("rescue_red", -0.15, 0, self.bot)
+        # Then clean up
+        self.delete_self()
     
-    # Rescue together
-    def complete_rescue_together(self):
-        print("Completed Red Victim rescue!")
-        
-        # Check delivery time if available
-        if self.rescue_start_time and self.estimated_delivery_time:
-            total_time = time.time() - self.rescue_start_time
-            
-            competence_adjustment = self.calculate_competence_adjustment(total_time, self.estimated_delivery_time)
-            
-            # Apply the calculated adjustment
-            self.increment_values("rescue_red", 0.1, competence_adjustment, self.bot)
-            print(f"Delivery completed in {total_time:.2f} seconds (estimated: {self.estimated_delivery_time:.2f})")
-            print(f"Competence adjustment: {competence_adjustment:.3f}")
-        else:
-            # Fallback if timing information isn't available
-            self.increment_values("rescue_red", 0.1, 0.1, self.bot)
-        
-        self.delete_red_victim_session()
-
-    def calculate_competence_adjustment(self, actual_time, estimated_time):
-        """
-        Calculates competence adjustment based on the ratio of actual to estimated time
-        
-        Returns a value in range [-0.2, 0.2] where:
-        - 0.2 means much faster than expected
-        - 0.1 means somewhat faster than expected
-        - 0.0 means exactly as expected
-        - -0.1 means somewhat slower than expected
-        - -0.2 means much slower than expected
-        """
-        time_ratio = actual_time / estimated_time
-        
-        if time_ratio <= 0.7:
-            return 0.2
-        elif time_ratio <= 0.9:
-            return 0.1
-        elif time_ratio <= 1.1:
-            return 0.05
-        elif time_ratio <= 1.3:
-            return -0.1
-        else:
-            return -0.2
-        
-    def manhattan_distance(self, pos1, pos2):
-        # Each position should be a tuple (x, y)
-        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
-    
-    def estimate_delivery_time(self, pickup_location, drop_location):
-        distance = self.manhattan_distance(pickup_location, drop_location)
-        
-        # Buffer time for coordination between human and robot
-        coordination_buffer = 10  # seconds
-        
-        # Estimated time based on distance and average move time
-        estimated_time = (distance * self.AVERAGE_MOVE_TIME_PER_TILE) + coordination_buffer
-        
-        print(f"Manhattan distance: {distance} tiles")
-        print(f"Estimated delivery time: {estimated_time:.2f} seconds")
-        
-        return estimated_time
-    
-    # For consistency with YellowVictimSession
-    def decision_making(self):
-        # For Red Victims, decision is always to ask human, regardless of trust values
-        competence = self.bot._trustBeliefs[self.bot._human_name]['rescue_red']['competence']
-        willingness = self.bot._trustBeliefs[self.bot._human_name]['rescue_red']['willingness']
-        
-        print(f"Red Victim rescue - competence: {competence}")
-        print(f"Red Victim rescue - willingness: {willingness}")
-        print("Note: For Red Victims, robot always asks human regardless of trust values")
-        
-        # Always return ASK_HUMAN for red victims
-        return self.TrustDecision.ASK_HUMAN
-
-    def delete_red_victim_session(self):
-        self.bot._red_victim_session = None
-        print("Red Victim Session Deleted")
-
     def wait(self):
+        """
+        Called each tick. 
+        We simply decrement TTL and see if we time out.
+        If still waiting for user or for them to show up, keep going. 
+        If TTL hits 0 => on_timeout.
+        """
         if self.ttl % 5 == 0 and self.ttl > 0:
             print("ttl:", self.ttl)
 
-        if self.bot._recent_vic is not None and self._goal_vic is None:
+        # (Optionally) keep the session in sync with the agent's _recent_vic
+        if self.bot._recent_vic and not self._goal_vic:
             self._goal_vic = self.bot._recent_vic
-        
-        if (self.bot._goal_vic is not None 
-                and self.bot._goal_vic in self.bot._remaining 
-                and self._goal_loc is None):
-            self._goal_loc = self.bot._remaining[self.bot._goal_vic]
-                
-        if self.bot._recent_vic is not None and self.recent_vic is None:
-            self.recent_vic = self.bot._recent_vic
-            
-        if self.bot._door['room_name'] is not None and self.room_name is None:
+            self.bot._goal_vic = self._goal_vic
+
+        # Copy from the agent's dictionary if missing
+        if self._goal_vic and self._goal_loc is None:
+            if self._goal_vic in self.bot._remaining and self.bot._remaining[self._goal_vic]:
+                self._goal_loc = self.bot._remaining[self._goal_vic]
+                self.bot._goal_loc = self._goal_loc
+
+        # Store the door name for logs
+        if self.bot._door['room_name'] and self.room_name is None:
             self.room_name = self.bot._door['room_name']
         
-        # Update pickup location if not set yet
-        if self.pickup_location is None and self.bot.state:
-            self.pickup_location = (self.bot.state['location'][0], self.bot.state['location'][1])
-            
-            # If we now have both pickup location and goal location, update estimated time
-            if self._goal_loc and self.pickup_location:
-                self.estimated_delivery_time = self.estimate_delivery_time(self.pickup_location, self._goal_loc)
-
         # Decrement TTL
         if self.ttl > 0:
             self.ttl -= 1
         if self.ttl == 0:
             return self.on_timeout()
-            
-        return 0   
+
+        return 0
 
     def on_timeout(self):
+        """If the user doesn't respond, or doesn't arrive, we skip rescue and penalize them."""
         if self.currPhase == self.RedVictimPhase.WAITING_RESPONSE:
-            print("Timed out waiting for response on RED Victim!")
-            # Decrease both willingness and competence more strongly
-            self.increment_values("rescue_red", -0.15, -0.15, self.bot)
-            
-            from agents1.OfficialAgent import Phase
+            print("Timed out waiting for Red Victim decision!")
+            self.increment_values("rescue_red", -0.2, -0.1, self.bot)
+
             self.bot._send_message(
-                f"Picking up Red Victim {self.bot._recent_vic} in {self.bot._door['room_name']}.",
-                'RescueBot'
+                f"Skipping rescue of {self.bot._recent_vic} in {self.bot._door['room_name']} due to no response.", 
+                "RescueBot"
             )
-            self.bot._rescue = 'red_alone'
-            
             self.bot._answered = True
             self.bot._waiting = False
-            self.bot._goal_vic = self.bot._recent_vic
-            self.bot._goal_loc = self.bot._remaining[self.bot._goal_vic]
-            self.bot._recent_vic = None
-            self.bot._phase = Phase.PLAN_PATH_TO_VICTIM
-           
-            self.delete_red_victim_session()
+            self.bot._rescue  = None 
+            self.delete_self()
             return 1
-                    
+        
         elif self.currPhase == self.RedVictimPhase.WAITING_HUMAN:
-            print("Timed out waiting for human for RED Victim!")
-            # Decrease willingness only
-            self.increment_values("rescue_red", -0.1, 0, self.bot)
+            # They said 'Rescue' but never showed up
+            print("Timed out waiting for human to arrive! Human didn't show up!")
+            self.increment_values("rescue_red", -0.1, -0.05, self.bot)
 
-            from agents1.OfficialAgent import Phase
-            self.bot._rescue = 'red_alone'
-            
             self.bot._send_message(
-                f"Picking up {self.recent_vic} in {self.room_name}.", 'RescueBot'
+                f"You did not show up to rescue {self.bot._recent_vic} in {self.room_name}; skipping.",
+                "RescueBot"
             )
             self.bot._answered = True
-            self.bot._waiting = False
-            
-            self.bot._goal_vic = self._goal_vic
-            self.bot._goal_loc = self._goal_loc
-            self.bot._recent_vic = None
-            
-            self.bot._phase = Phase.PLAN_PATH_TO_VICTIM
-            self.delete_red_victim_session()
+            self.bot._waiting  = False
+            self.bot._rescue   = None
+            self.delete_self()
             return 1
-
+        
         else:
-            print("RedVictimSession: Unrecognized phase on timeout!")
-            return 0
+            print("on_timeout called, but we are in an unknown phase—check logic!")
+            return 1
+        
+    def human_showed_up(self):
+        """
+        If you detect the human arrived at the victim's location, or at least indicated readiness,
+        you can finalize the rescue. 
+        """
+        print("Human showed up on time to rescue Red Victim together!")
+        self.increment_values("rescue_red", 0.0, 0.1, self.bot)
+
+    def complete_rescue_together(self):
+        """
+        Once the Red Victim is delivered, we finalize. 
+        For example, we measure total rescue time vs. estimate, etc.
+        """
+        if self.rescue_start_time:
+            total_time = time.time() - self.rescue_start_time
+            print(f"Total rescue time: {total_time:.2f} seconds")
+            # Possibly do advanced competence scaling if desired
+
+        print("Completed rescue of Red Victim together!")
+        self.increment_values("rescue_red", 0.1, 0.2, self.bot)
+        self.delete_self()
+
+    def delete_red_victim_session(self):
+        print("Red Victim Session Deleted")
+        self.bot._red_victim_session = None
+
+    def estimate_delivery_time(self, start, end):
+        """Example Manhattan distance -> approximate secs. Your logic may vary."""
+        (x1, y1) = start
+        (x2, y2) = end
+        dist = abs(x1 - x2) + abs(y1 - y2)
+        # Some scale factor, e.g. 1 second per tile
+        return dist * 1.0
