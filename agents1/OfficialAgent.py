@@ -1153,7 +1153,8 @@ class BaselineAgent(ArtificialBrain):
                     if area not in self._searched_rooms:
                         search_competence = self._trustBeliefs[self._human_name]['search']['competence']
                         # scale to percentage
-                        prob = (search_competence + 1) * 0.5
+                        # prob = (search_competence + 1) * 0.5
+                        prob = 1 #TODO: remove this line
                         # Decision making: add the area to the memory of searched areas based on the probability
                         rand = random.random() #TODO: what distribution to use?
                         if rand > prob:
@@ -1175,7 +1176,8 @@ class BaselineAgent(ArtificialBrain):
                     if loc not in self._searched_rooms:
                         found_willingness = self._trustBeliefs[self._human_name]['rescue_yellow']['willingness'] if 'mild' in foundVic else self._trustBeliefs[self._human_name]['rescue_red']['willingness']
                         # scale to percentage
-                        prob = (found_willingness + 1) * 0.5
+                        # prob = (found_willingness + 1) * 0.5
+                        prob = 1 #TODO: remove this line
                         # Decision making: add the area to the memory of searched areas based on the probability
                         rand = random.random() #TODO: what distribution to use?
                         if rand > prob:
@@ -1206,7 +1208,8 @@ class BaselineAgent(ArtificialBrain):
                     if loc not in self._searched_rooms:
                         rescue_yellow_competence = self._trustBeliefs[self._human_name]['rescue_yellow']['competence']
                         # scale to percentage
-                        prob = (rescue_yellow_competence + 1) * 0.5
+                        # prob = (rescue_yellow_competence + 1) * 0.5
+                        prob = 1 #TODO: remove this line
                         # Decision making: add the area to the memory of searched areas based on the probability
                         rand = random.random() #TODO: what distribution to use?
                         if rand > prob:
