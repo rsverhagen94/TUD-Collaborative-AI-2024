@@ -512,12 +512,31 @@ class BaselineAgent(ArtificialBrain):
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle          
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
-                            self._answered = True
-                            self._waiting = False
-                            # Add area to the to do list
-                            self._to_search.append(self._door['room_name'])
-                            self._phase = Phase.FIND_NEXT_GOAL
-                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            
+                            # Perform competence and willingness check for removal
+                            competence_pass = self._passesCompetenceCheckForRemoval()
+
+                            if competence_pass:
+                                self._answered = True
+                                self._waiting = False
+                                # Add area to the to do list
+                                self._to_search.append(self._door['room_name'])
+                                self._phase = Phase.FIND_NEXT_GOAL
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                            else:  
+                                # ❌ Human is not trusted → Force removal
+                                self._send_message("Sorry, I don't trust you! I decided to remove the stones anyway!", 'RescueBot')
+                                self._send_message('Removing stones blocking ' + str(self._door['room_name']) + '.', 'RescueBot')
+                                
+                                self._answered = True
+                                self._waiting = False
+                                self._remove = True  
+                                self._phase = Phase.ENTER_ROOM
+
+                                action = RemoveObject.__name__, {'object_id': info['obj_id']}
+                                self._remove = False 
+                                
+                                return action 
                         # Remove the obstacle alone if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove alone' and not self._remove:
@@ -533,23 +552,42 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
-                            if not self._remove:
+
+                            # Perform competence and willingness check for removal
+                            competence_pass = self._passesCompetenceCheckForRemoval()
+
+                            if competence_pass:
+                                if not self._remove:
+                                    self._answered = True
+                                # Tell the human to come over and be idle untill human arrives
+                                if not state[{'is_human_agent': True}]:
+                                    self._send_message(
+                                        'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
+                                        'RescueBot')
+                                    if self._distance_human == 'far':
+                                        self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+                                    else:
+                                        self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
+                                    return None, {}
+                                # Tell the human to remove the obstacle when he/she arrives
+                                if state[{'is_human_agent': True}]:
+                                    self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
+                                                    'RescueBot')
+                                    return None, {}
+                            else:
+                                # ❌ Human is not trusted → Force removal
+                                self._send_message("Sorry, I don't trust you! I decided to remove the stones alone!", 'RescueBot')
+                                self._send_message('Removing stones blocking ' + str(self._door['room_name']) + '.', 'RescueBot')
+                                
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
-                            if not state[{'is_human_agent': True}]:
-                                self._send_message(
-                                    'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
-                                    'RescueBot')
-                                if self._distance_human == 'far':
-                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
-                                else:
-                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
-                                return None, {}
-                            # Tell the human to remove the obstacle when he/she arrives
-                            if state[{'is_human_agent': True}]:
-                                self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
-                                                  'RescueBot')
-                                return None, {}
+                                self._waiting = False
+                                self._remove = True  
+                                self._phase = Phase.ENTER_ROOM
+
+                                action = RemoveObject.__name__, {'object_id': info['obj_id']}
+                                self._remove = False 
+                                
+                                return action 
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
