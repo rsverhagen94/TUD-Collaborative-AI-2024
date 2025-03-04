@@ -128,6 +128,14 @@ class BaselineAgent(ArtificialBrain):
             for task in self._tasks:
                 self._trustBeliefs[self._human_name][task]['competence'] = np.random.uniform(-1, 1)
                 self._trustBeliefs[self._human_name][task]['willingness'] = np.random.uniform(-1, 1)
+        elif PromptSession.scenario_used == Scenario.NEVER_TRUST:
+            for task in self._tasks:
+                self._trustBeliefs[self._human_name][task]['competence'] = -1
+                self._trustBeliefs[self._human_name][task]['willingness'] = -1
+        elif PromptSession.scenario_used == Scenario.ALWAYS_TRUST:
+            for task in self._tasks:
+                self._trustBeliefs[self._human_name][task]['competence'] = 1
+                self._trustBeliefs[self._human_name][task]['willingness'] = 1
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
