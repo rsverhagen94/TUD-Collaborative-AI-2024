@@ -7,12 +7,12 @@ matrx          == 2.2.0
 # libraries used by matrx and their versions, excl webserver stuff
 bidict         == 0.21.2
 chardet        == 4.0.0
-colour         == 0.1.5
-docutils       == 0.16
-gevent         == 21.1.2
-greenlet       == 1.0.0
-jsonpickle     == 1.5.1
-numpy          == 1.20.0
+colour
+docutils
+gevent
+greenlet
+jsonpickle
+numpy
 Werkzeug       == 2.0.0
 flask          == 2.1.3
 

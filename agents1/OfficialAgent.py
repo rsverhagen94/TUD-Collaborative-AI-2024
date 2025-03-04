@@ -561,7 +561,11 @@ class BaselineAgent(ArtificialBrain):
                             if vic not in self._room_vics:
                                 self._room_vics.append(vic)
 
-                            # Identify the exact location of the victim that was found by the human earlier
+                            if len(self._room_vics) == 0:
+                                self._send_message('Did NOT find ' + self._goal_vic + 'in this room as you claimed LIAR!',
+                                                   'RescueBot') # TODO:
+
+                                # Identify the exact location of the victim that was found by the human earlier
                             if vic in self._found_victims and 'location' not in self._found_victim_logs[vic].keys():
                                 self._recent_vic = vic
                                 # Add the exact victim location to the corresponding dictionary
@@ -578,6 +582,10 @@ class BaselineAgent(ArtificialBrain):
                                         self._searched_rooms.append(self._door['room_name'])
                                     # Do not continue searching the rest of the area but start planning to rescue the victim
                                     self._phase = Phase.FIND_NEXT_GOAL
+
+                                else:
+                                    self._send_message('Did NOT find ' + self._goal_vic + 'in this room as you claimed LIAR!',
+                                                       'RescueBot') # TODO:
 
                             # Identify injured victim in the area
                             if 'healthy' not in vic and vic not in self._found_victims:
