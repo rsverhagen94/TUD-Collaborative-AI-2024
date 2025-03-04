@@ -54,11 +54,28 @@ class YellowVictimSession(PromptSession):
     
     
     # Human found a yellow victim       
-    def human_found_alone(self):
-        pass
-    def human_rescue_alone(self):
-        # higher competencec than below, because he can pickup alone
-        pass
+    def human_found_alone_truth(self):
+        print("Human claimed to have Found a new Yellow Victim")
+        self.increment_values("rescue_yellow", 0.1, 0.0, self.bot)
+    
+    def human_found_alone_lie(self):
+        print("Human claimed to have Found a new Yellow Victim, while this victim has been Found before")
+        self.increment_values("rescue_yellow", -0.15, 0.0, self.bot)
+    
+    def human_collect_alone_truth(self):
+        # higher competencec than human_rescue_together, because he can pickup alone
+        print("Human claimed to have Collected a new Yellow Victim")
+        self.increment_values("rescue_yellow", 0.0, 0.1, self.bot)
+    
+    def human_collect_alone_lie(self):
+        print("Human claimed to have Collected a new Yellow Victim, while this victim has been Collected before")
+        self.increment_values("rescue_yellow", 0.0, -0.15, self.bot)
+    
+    def human_collect_alone_lie_location(self):
+        print("Human claimed to have Collected a new Yellow Victim, while this victim has been (claimed to be) found elsewhere")
+        self.increment_values("rescue_yellow", 0.0, -0.05, self.bot)    
+    
+    
     def human_rescue_together(self):
         pass
         
@@ -124,9 +141,10 @@ class YellowVictimSession(PromptSession):
         return None, {} 
           
     
-    def delete_yellow_victim_session(self):
+    def delete_yellow_victim_session(self, flag=True):
         self.bot._yellow_victim_session = None
-        print("Yellow Victim Session Deleted")
+        if flag:
+            print("Yellow Victim Session Deleted")
     
     
     def wait(self):
@@ -158,7 +176,7 @@ class YellowVictimSession(PromptSession):
         # Figure out what to do depending on the current phase
         if self.currPhase == self.YellowVictimPhase.WAITING_RESPONSE:
             print("Timed out waiting for response!")
-            self.increment_values("rescue_yellow", -0.15, -0.15, self.bot)
+            self.increment_values("rescue_yellow", -0.1, -0.0, self.bot)
 
             from agents1.OfficialAgent import Phase
             self.bot._send_message('Picking up ' + self.bot._recent_vic + ' in ' + self.bot._door['room_name'] + '.',
@@ -182,7 +200,7 @@ class YellowVictimSession(PromptSession):
                     
         elif self.currPhase == self.YellowVictimPhase.WAITING_HUMAN:
             print("Timed out waiting for human! Human Didn't show up!")
-            self.increment_values("rescue_yellow", -0.1, 0, self.bot)
+            self.increment_values("rescue_yellow", 0.0, -0.1, self.bot)
 
             from agents1.OfficialAgent import Phase
             

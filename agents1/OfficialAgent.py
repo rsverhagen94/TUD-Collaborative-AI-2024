@@ -84,7 +84,8 @@ class BaselineAgent(ArtificialBrain):
         
         # Used when Rescuing Yellow Victims
         self._yellow_victim_session = None
-        self._number_of_yellow_victims_saved = 0
+        self._claimed_collected_victims = []
+        self._yellow_victim_processed_messages = set()
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -163,7 +164,6 @@ class BaselineAgent(ArtificialBrain):
                 # Human Showed Up
                 if 'mild' in info['is_carrying'][0]['obj_id']:
                     if isinstance(self._yellow_victim_session, PromptSession):
-                        self._number_of_yellow_victims_saved += 1
                         self._yellow_victim_session.delete_yellow_victim_session()
                 #
                         
@@ -465,8 +465,8 @@ class BaselineAgent(ArtificialBrain):
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
                             self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
-                                Important features to consider are: \n safe - victims rescued: ' + str(
-                                self._collected_victims) + ' \n explore - areas searched: area ' + str(
+                                Important features to consider are: \n safe - victims (claimed to be) rescued: ' + str(
+                                set(self._collected_victims) | set(self._claimed_collected_victims)) + ' \n explore - areas searched: area ' + str(
                                 self._searched_rooms).replace('area ', '') + ' \
                                 \n clock - removal time: 5 seconds \n afstand - distance between us: ' + self._distance_human,
                                               'RescueBot')
@@ -516,8 +516,8 @@ class BaselineAgent(ArtificialBrain):
                             if decision is not None:
                                 return decision
                             self._send_message('Found tree blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
-                                Important features to consider are: \n safe - victims rescued: ' + str(
-                                self._collected_victims) + '\n explore - areas searched: area ' + str(
+                                Important features to consider are: \n safe - victims (claimed to be) rescued: ' + str(
+                                set(self._collected_victims) | set(self._claimed_collected_victims)) + '\n explore - areas searched: area ' + str(
                                 self._searched_rooms).replace('area ', '') + ' \
                                 \n clock - removal time: 10 seconds', 'RescueBot')
                             self._waiting = True
@@ -568,8 +568,8 @@ class BaselineAgent(ArtificialBrain):
                                 return decision
 
                             self._send_message('Found stones blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove together", "Remove alone", or "Continue" searching. \n \n \
-                                Important features to consider are: \n safe - victims rescued: ' + str(
-                                self._collected_victims) + ' \n explore - areas searched: area ' + str(
+                                Important features to consider are: \n safe - victims (claimed to be) rescued: ' + str(
+                                set(self._collected_victims) | set(self._claimed_collected_victims)) + ' \n explore - areas searched: area ' + str(
                                 self._searched_rooms).replace('area', '') + ' \
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                               'RescueBot')
@@ -760,8 +760,8 @@ class BaselineAgent(ArtificialBrain):
                                         
                                     # If either Competence or Willingness is low, continue as normal and request      
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue together", "Rescue alone", or "Continue" searching. \n \n \
-                                        Important features to consider are: \n safe - victims rescued: ' + str(
-                                        self._collected_victims) + '\n explore - areas searched: area ' + str(
+                                        Important features to consider are: \n safe - victims (claimed to be) rescued: ' + str(
+                                        set(self._collected_victims) | set(self._claimed_collected_victims)) + '\n explore - areas searched: area ' + str(
                                         self._searched_rooms).replace('area ', '') + '\n \
                                         clock - extra time when rescuing alone: 15 seconds \n afstand - distance between us: ' + self._distance_human,
                                                       'RescueBot')
@@ -773,8 +773,8 @@ class BaselineAgent(ArtificialBrain):
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue" or "Continue" searching. \n\n \
                                         Important features to consider are: \n explore - areas searched: area ' + str(
                                         self._searched_rooms).replace('area',
-                                                                      '') + ' \n safe - victims rescued: ' + str(
-                                        self._collected_victims) + '\n \
+                                                                      '') + ' \n safe - victims (claimed to be) rescued: ' + str(
+                                        set(self._collected_victims) | set(self._claimed_collected_victims)) + '\n \
                                         afstand - distance between us: ' + self._distance_human, 'RescueBot')
                                     self._waiting = True
                                     # Execute move actions to explore the area
@@ -1047,6 +1047,9 @@ class BaselineAgent(ArtificialBrain):
             for member in teamMembers:
                 if mssg.from_id == member:
                     receivedMessages[member].append(mssg.content)
+        
+        
+        
         # Check the content of the received messages
         for mssgs in receivedMessages.values():
             for msg in mssgs:
@@ -1055,6 +1058,7 @@ class BaselineAgent(ArtificialBrain):
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
+                
                 # If a received message involves team members finding victims, add these victims and their locations to memory
                 if msg.startswith("Found:"):
                     # Identify which victim and area it concerns
@@ -1063,22 +1067,44 @@ class BaselineAgent(ArtificialBrain):
                     else:
                         foundVic = ' '.join(msg.split()[1:5])
                     loc = 'area ' + msg.split()[-1]
+                    
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
                         self._searched_rooms.append(loc)
+                    
+                    
+                    
+                    if msg not in self._yellow_victim_processed_messages and 'mild' in foundVic:   
+                        self._yellow_victim_session = YellowVictimSession(self, None, 100)
+                        
+                        # Human claimed to have found a new yellow victim
+                        if foundVic not in self._found_victims:
+                            self._yellow_victim_session.human_found_alone_truth()
+                        
+                        # Human claimed to have found a new yellow victim that was already found
+                        if foundVic in self._found_victims:
+                            self._yellow_victim_session.human_found_alone_lie()
+                        
+                        self._yellow_victim_session.delete_yellow_victim_session(False)
+
+                        self._yellow_victim_processed_messages.add(msg)
+                        
                     # Add the victim and its location to memory
                     if foundVic not in self._found_victims:
                         self._found_victims.append(foundVic)
                         self._found_victim_logs[foundVic] = {'room': loc}
                     if foundVic in self._found_victims and self._found_victim_logs[foundVic]['room'] != loc:
                         self._found_victim_logs[foundVic] = {'room': loc}
+                    
+
                     # Decide to help the human carry a found victim when the human's condition is 'weak'
                     if condition == 'weak':
                         self._rescue = 'together'
                     # Add the found victim to the to do list when the human's condition is not 'weak'
                     if 'mild' in foundVic and condition != 'weak':
                         self._todo.append(foundVic)
-                
+                    
+                    
                 # If a received message involves team members rescuing victims, add these victims and their locations to memory
                 if msg.startswith('Collect:'):
                     # Identify which victim and area it concerns
@@ -1092,28 +1118,45 @@ class BaselineAgent(ArtificialBrain):
                     if loc not in self._searched_rooms:
                         self._searched_rooms.append(loc)
                     
+                    
+                    if msg not in self._yellow_victim_processed_messages and 'mild' in collectVic:   
+                        self._yellow_victim_session = YellowVictimSession(self, None, 100)
+                        
+                        # Human claimed to have collect a new yellow victim
+                        if collectVic not in self._found_victims and collectVic not in self._collected_victims and collectVic not in self._claimed_collected_victims:
+                            self._yellow_victim_session.human_collect_alone_truth()
+                        
+                        # Human claimed to have collect a new yellow victim that was already collected
+                        if collectVic in self._collected_victims or collectVic in self._claimed_collected_victims:
+                            self._yellow_victim_session.human_collect_alone_lie()
+                        
+                        self._yellow_victim_session.delete_yellow_victim_session(False)
+                        
+                        self._yellow_victim_processed_messages.add(msg)
+                        
+                    
                     # Add the victim and location to the memory of found victims
                     if collectVic not in self._found_victims:
                         self._found_victims.append(collectVic)
                         self._found_victim_logs[collectVic] = {'room': loc}
                     if collectVic in self._found_victims and self._found_victim_logs[collectVic]['room'] != loc:
                         self._found_victim_logs[collectVic] = {'room': loc}
+                       
+                        # A lie about the victim location has occured
+                        self._yellow_victim_session = YellowVictimSession(self, None, 100)
+                        self._yellow_victim_session.human_collect_alone_lie_location()
+                        self._yellow_victim_session.delete_yellow_victim_session(False)
+
                     
                     # Add the victim to the memory of rescued victims when the human's condition is not weak
-                    if condition != 'weak' and collectVic not in self._collected_victims:
-                        # Human responsible for collecting this yellow victim
-                        if 'mild' in collectVic:
-                            self._number_of_yellow_victims_saved += 1
-                            
-                        self._collected_victims.append(collectVic)
-                        
-                    # Human "lied" about picking up an already picked up victim
-                    # ADD CASE!!    
-                    
+                    if condition != 'weak' and collectVic not in self._claimed_collected_victims:
+                        # self._collected_victims.append(collectVic)
+                        self._claimed_collected_victims.append(collectVic)
+ 
                     # Decide to help the human carry the victim together when the human's condition is weak
                     if condition == 'weak':
-                        # Dont increment self._number_of_yellow_victims_saved, beucase it happens after the robot has arrvied, right????????
                         self._rescue = 'together'
+                        
                 
                 # If a received message involves team members asking for help with removing obstacles, add their location to memory and come over
                 if msg.startswith('Remove:'):
@@ -1149,6 +1192,8 @@ class BaselineAgent(ArtificialBrain):
                                                    '14']:
                 self._human_loc = int(mssgs[-1].split()[-1])
 
+    
+    
     def _loadBelief(self, members, folder):
         '''
         Loads trust belief values if agent already collaborated with human before, otherwise trust belief values are initialized using default values.
