@@ -473,7 +473,11 @@ class BaselineAgent(ArtificialBrain):
                                 self._waiting = False
                                 self._remove = True  # ✅ Ensure removal happens immediately
                                 self._phase = Phase.ENTER_ROOM
-                                return RemoveObject.__name__, {'object_id': info['obj_id']}  # ✅ Immediate removal
+
+                                action = RemoveObject.__name__, {'object_id': info['obj_id']}
+                                self._remove = False 
+                                
+                                return action 
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
