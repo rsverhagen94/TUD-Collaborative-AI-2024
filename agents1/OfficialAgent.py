@@ -183,9 +183,10 @@ class BaselineAgent(ArtificialBrain):
                 if remaining_zones:
                     self._remainingZones = remaining_zones
                     self._remaining = remaining
-                # Remain idle if there are no victims left to rescue
+                # Pick an unsearched room if there are (supposedly) no more rooms to search
+                # This is probably since the human lied.
                 if not remaining_zones:
-                    return None, {}
+                    self._phase = Phase.PICK_UNSEARCHED_ROOM
 
                 # Check which victims can be rescued next because human or agent already found them
                 for vic in remaining_vics:
@@ -1137,6 +1138,10 @@ class BaselineAgent(ArtificialBrain):
                 locs.append((x[i], max(y)))
         return locs
     
+    # Normalize value that is btwn -1 and 1 to 0 to 1
+    def normalize(self,value):
+        return (value + 1) / 2
+    
     def _passesCompetenceCheckForRescue(self):
         """
         Determines if the human passes the competence check based on their recorded competence trust belief.
@@ -1145,9 +1150,9 @@ class BaselineAgent(ArtificialBrain):
         if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
-        competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_COMPETENCE, 0.5)
+        competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_COMPETENCE, 0.0)
 
-        return random.random() < competence_value
+        return random.random() < self.normalize(competence_value)
 
     def _passesWillingnessCheckForRescue(self):
         """
@@ -1157,9 +1162,9 @@ class BaselineAgent(ArtificialBrain):
         if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
-        willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.5)
+        willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.0)
 
-        return random.random() < willingness_value
+        return random.random() < self.normalize(willingness_value)
     
     def _passesCompetenceCheckForRemoval(self):
         """
@@ -1169,9 +1174,9 @@ class BaselineAgent(ArtificialBrain):
         if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
-        competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_COMPETENCE, 0.5)
+        competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_COMPETENCE, 0.0)
 
-        return random.random() < competence_value
+        return random.random() < self.normalize(competence_value)
 
     def _passesWillingnessCheckForRemoval(self):
         """
@@ -1181,6 +1186,6 @@ class BaselineAgent(ArtificialBrain):
         if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
             return False  # Safety check to ensure trust service and human name are available
 
-        willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_WILLINGNESS, 0.5)
+        willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_WILLINGNESS, 0.0)
 
-        return random.random() < willingness_value
+        return random.random() < self.normalize(willingness_value)
