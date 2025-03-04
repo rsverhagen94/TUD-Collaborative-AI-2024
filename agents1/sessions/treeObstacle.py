@@ -53,6 +53,12 @@ class TreeObstacleSession(PromptSession):
             self.increment_values("remove_tree", 0.1, 0, self.bot)
         self.delete_self()
 
+    # Static method for removal when no prompt is generated as the human asked the bot to remove an obstacle
+    @staticmethod
+    def help_remove_tree(bot):
+        print("Help Remove Tree heard")
+        TreeObstacleSession.increment_values("remove_tree", 0.1, 0, bot)
+
     def on_timeout(self):
         print("Timed out waiting for response!")
         if self.scenario_used == Scenario.USE_TRUST_MECHANISM:
