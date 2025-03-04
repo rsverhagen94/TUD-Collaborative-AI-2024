@@ -603,14 +603,15 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
-                            self._current_prompt.remove_tree()
 
                             if not self._remove:
+                                self._current_prompt.remove_tree()
                                 self._answered = True
                                 self._waiting = False
                                 self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
                                                   'RescueBot')
                             if self._remove:
+                                TreeObstacleSession.help_remove_tree(self)
                                 self._send_message('Removing tree blocking ' + str(
                                     self._door['room_name']) + ' because you asked me to.', 'RescueBot')
                             self._phase = Phase.ENTER_ROOM
@@ -683,7 +684,9 @@ class BaselineAgent(ArtificialBrain):
                                 self._answered = True
                             # Tell the human to come over and be idle until human arrives
                             if not state[{'is_human_agent': True}]:
-                                self._current_prompt.remove_together()
+                                tmp = StoneObstacleSession.help_remove_together(self, info)
+                                if tmp is not None:
+                                    return tmp
 
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
