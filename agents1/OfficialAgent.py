@@ -1163,8 +1163,13 @@ class BaselineAgent(ArtificialBrain):
                     loc = 'area ' + msg.split()[-1]
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
-                        self._searched_rooms.append(loc)
-                        # TODO: make a list of areas that have been searched by the human(inferred from the 'Found' messages)
+                        found_willingness = self._trustBeliefs[self._human_name]['rescue_yellow']['willingness'] if 'mild' in foundVic else self._trustBeliefs[self._human_name]['rescue_red']['willingness']
+                        # scale to percentage
+                        prob = (found_willingness + 1) * 0.5
+                        # Decision making: add the area to the memory of searched areas based on the probability
+                        rand = random.random() #TODO: what distribution to use?
+                        if rand > prob:
+                            self._searched_rooms.append(loc)
                     # Add the victim and its location to memory
                     if foundVic not in self._found_victims:
                         self._found_victims.append(foundVic)
@@ -1189,9 +1194,14 @@ class BaselineAgent(ArtificialBrain):
                     
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
-                        # TODO: For collect we might need to create a different list of searched rooms(inferred search), since this is a different task
-                        self._searched_rooms.append(loc) #TODO: make an inferred searched rooms from collect, and change the condition for re-searching
-                    
+                        rescue_yellow_competence = self._trustBeliefs[self._human_name]['rescue_yellow']['competence']
+                        # scale to percentage
+                        prob = (rescue_yellow_competence + 1) * 0.5
+                        # Decision making: add the area to the memory of searched areas based on the probability
+                        rand = random.random() #TODO: what distribution to use?
+                        if rand > prob:
+                            self._searched_rooms.append(loc) # Partially trust the human
+                            
                     # Add the victim and location to the memory of found victims
                     if collectVic not in self._found_victims:
                         self._found_victims.append(collectVic)
@@ -1225,7 +1235,9 @@ class BaselineAgent(ArtificialBrain):
                         self._doormat = state.get_room(area)[-1]['doormat']
                         if area in self._searched_rooms:
                             # indicate that the human lied about searching the area
+                            # or that the human is not competent enough to find the obstacle?(tricking the bot)
                             self._searched_rooms.remove(area)
+                            #TODO: try to run this code and see if it penalizes the search competence
                         # Clear received messages (bug fix)
                         self.received_messages = []
                         self.received_messages_content = []
