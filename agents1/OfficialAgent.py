@@ -19,6 +19,13 @@ from agents1.sessions.stoneObstacle import StoneObstacleSession
 from agents1.sessions.yellowVictim import YellowVictimSession
 from agents1.sessions.treeObstacle import TreeObstacleSession
 from agents1.eventUtils import PromptSession
+from agents1.searchTrustLogic import (
+    compute_search_willingness_update, 
+    compute_search_competence_penalty_for_obstacle, 
+    compute_search_competence_penalty_for_victim, 
+    compute_search_competence_reward_no_victims_or_obstacles, 
+    compute_search_competence_bonus_collect_all_victims
+)
 
 class Phase(enum.Enum):
     INTRO = 1,
@@ -53,7 +60,9 @@ class BaselineAgent(ArtificialBrain):
         self._folder = folder
         self._phase = Phase.INTRO
         self._room_vics = []
-        self._searched_rooms = []
+        self._searched_rooms = [] # Contains the searched rooms by the agent and human(based on the beliefs lvl)
+        self._searched_rooms_by_agent = [] # Contains the searched rooms by the agent, so 100% sure
+        self._searched_rooms_claimed_by_human = [] # record the rooms claimed searched by the human
         self._found_victims = []
         self._collected_victims = []
         self._found_victim_logs = {}
@@ -76,11 +85,17 @@ class BaselineAgent(ArtificialBrain):
         self._rescue = None
         self._recent_vic = None
         self._received_messages = []
+        self._consumed_messages = set() # we only want to consume each message once (to add searched rooms with probability)
         self._moving = False
-        self._trustBeliefs = None # Only load the trust beliefs once
-
+        self._remainingZones = []
+        self._trustBeliefs = None # only load the trust beliefs once
+        self._re_searching = False # once it becomes true, competence penalty is applied when the agent found obstacles or victims
+        self._not_penalizable = [] # contains the areas searched by agent and where the agent found obstacles or victims
+        self._door = {'room_name': None, 'location': None}
+        self._all_room_tiles = None
         # Used when removing stone obstacles
         self._current_prompt = None
+        self._stop_finding_next_goal = False
         
         # Used when Rescuing Yellow Victims
         self._yellow_victim_session = None
@@ -100,6 +115,12 @@ class BaselineAgent(ArtificialBrain):
         return state
 
     def decide_on_actions(self, state):
+        # Store the location of tiles in all the rooms
+        if self._all_room_tiles == None:
+            self._all_room_tiles = [info['location'] for info in state.values()
+                            if 'class_inheritance' in info
+                            and 'AreaTile' in info['class_inheritance']
+                            and 'room_name' in info]
         # Identify team members
         agent_name = state[self.agent_id]['obj_id']
         for member in state['World']['team_members']:
@@ -127,6 +148,20 @@ class BaselineAgent(ArtificialBrain):
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
         
+        # If all victims are reported as collected, evaluate the trust beliefs and update them
+        # Note: if human rescued a victim without reporting it, the agent will not know about it, thus the game will end before the collected victims list is full, and the trust beliefs will not be updated
+        # Also, if the human lies about rescuing a victim, the collected victims list will be full before the game ends, then the trust beliefs will be updated but the agent will stop finding the next goal
+        if len(self._collected_victims) == 8 and not self._stop_finding_next_goal:
+            self._stop_finding_next_goal = True
+            # Willingness Update: Increase trust in human if all victims are rescued
+            willingness_update = compute_search_willingness_update(len(self._searched_rooms_claimed_by_human), len(self._searched_rooms_by_agent), 1) #TODO: introduce confidence lvl and tune this
+            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "willingness", willingness_update)
+            # Competence Update: Increase trust in human if all victims are rescued
+            # Assume all the areas have not been searched by the agent are searched by the human exhaustively
+            competence_bonus = compute_search_competence_bonus_collect_all_victims(14 - len(self._searched_rooms_by_agent), 1) #TODO: introduce confidence lvl and tune this
+            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_bonus)
+            print("Search Willingness/Competence Increased: All victims rescued.")
+        
         
         # Initialize and update trust beliefs for team members
         if self._trustBeliefs == None:
@@ -152,7 +187,7 @@ class BaselineAgent(ArtificialBrain):
         if self._agent_loc in [3, 4, 7, 10, 13, 14]:
             self._distance_drop = 'close'
 
-        # Check whether victims are currently being carried together by human and agent 
+        # Check whether victims are currently being carried together by human and agent
         for info in state.values():
             if 'is_human_agent' in info and self._human_name in info['name'] and len(
                     info['is_carrying']) > 0 and 'critical' in info['is_carrying'][0]['obj_id'] or \
@@ -307,20 +342,37 @@ class BaselineAgent(ArtificialBrain):
 
 
             if Phase.PICK_UNSEARCHED_ROOM == self._phase:
+                # Competence Update: Increase trust in human if bot did not find obstacles/victims during re-searching(only when agent is inside a room)
+                if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and state[self.agent_id]['location'] in self._all_room_tiles and self._door['room_name'] not in self._not_penalizable:
+                    competence_reward = compute_search_competence_reward_no_victims_or_obstacles(1) #TODO: introduce confidence lvl and tune this
+                    self._trustBelief(self._team_members, self._trustBeliefs, self._folder, 'search', 'competence', competence_reward)
+                    print("Search Competence Increased: No obstacles or victims found in current room during re-searching.")
+                    
                 agent_location = state[self.agent_id]['location']
                 # Identify which areas are not explored yet
+                #TODO: Union of (searched_rooms: searched_rooms_by_agent ++ searched_rooms_claimed_by_human(with probability), inferred_searched_rooms_from_collect, inferred_searched_rooms_from_found)
                 unsearched_rooms = [room['room_name'] for room in state.values()
                                    if 'class_inheritance' in room
                                    and 'Door' in room['class_inheritance']
                                    and room['room_name'] not in self._searched_rooms
                                    and room['room_name'] not in self._to_search]
                 # If all areas have been searched but the task is not finished, start searching areas again
-                if self._remainingZones and len(unsearched_rooms) == 0:
+                if self._remainingZones and len(unsearched_rooms) == 0: 
+                    # Competence Update: Decrease trust in human if all areas have been searched and re-searching is needed**
+                    willingness_update = compute_search_willingness_update(len(self._searched_rooms_claimed_by_human), len(self._searched_rooms_by_agent), 1) #TODO: introduce confidence lvl and tune this
+                    self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "willingness", willingness_update)
+                    print("Search Willingness Updated: All areas have been searched, starting re-searching.")
+                    
                     self._to_search = []
-                    self._searched_rooms = []
+                    self._searched_rooms = list(self._searched_rooms_by_agent) # Reset the searched rooms(only includes the ones searched by the agent)
+                    self._searched_rooms_claimed_by_human = [] # Reset the searched rooms claimed by the human
+                    self._searched_rooms_by_agent = [] # Reset the searched rooms by the agent, only store the new ones in the next searching round
                     self._send_messages = []
                     self.received_messages = []
                     self.received_messages_content = []
+                    self._consumed_messages = set()
+                    self._re_searching = True
+                    self._not_penalizable = list(self._searched_rooms) # Reset to agent searched rooms
                     self._send_message('Going to re-search all areas.', 'RescueBot')
                     self._phase = Phase.FIND_NEXT_GOAL
                 # If there are still areas to search, define which one to search next
@@ -462,6 +514,14 @@ class BaselineAgent(ArtificialBrain):
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info[
                         'obj_id']:
                         objects.append(info)
+                        # Competence Update: Decrease trust in human if bot found obstacles at the entrance of the claimed searched area
+                        if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and self._door['room_name'] not in self._not_penalizable:
+                            competence_penalty = compute_search_competence_penalty_for_obstacle('rock', 1) #TODO: introduce confidence lvl and tune this
+                            # Competence penalty for the human when the agent found a rock in a previously searched area
+                            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
+                            self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                            print("Search Competence Decreased: Rock found in previously searched area.")
+                            
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
                             self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
@@ -506,10 +566,17 @@ class BaselineAgent(ArtificialBrain):
                         
                         # print(f"Debug: _answered={self._answered}, _remove={self._remove}, _waiting={self._waiting}")
                         
+                        # Competence Update: Decrease trust in human if bot found obstacles at the entrance of the claimed searched area
+                        if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and self._door['room_name'] not in self._not_penalizable:
+                            competence_penalty = compute_search_competence_penalty_for_obstacle('tree', 1)
+                            # Competence penalty for the human when the agent found a tree in a previously searched area
+                            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty) #TODO: change this hardcoded value
+                            self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                            print("Search Competence Decreased: Tree found in previously searched area.")
+                            
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
                             print("reached tree if statement")
-                            
                             # Trust Check
                             decision = TreeObstacleSession.process_trust(self, info)
                             # If decision is None, we trust the human and generate the prompt
@@ -537,14 +604,20 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
-                            self._current_prompt.remove_tree()
 
                             if not self._remove:
+                                self._current_prompt.remove_tree()
                                 self._answered = True
                                 self._waiting = False
                                 self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
                                                   'RescueBot')
                             if self._remove:
+                                # if self._door['room_name'] in self._searched_rooms_claimed_by_human and self._door['room_name'] not in self._not_penalizable:
+                                #     competence_penalty = compute_search_competence_penalty_for_obstacle('tree', 1)
+                                #     self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
+                                #     self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                                #     print("Search Competence Decreased: Tree found in previously searched area.")
+                                TreeObstacleSession.help_remove_tree(self)
                                 self._send_message('Removing tree blocking ' + str(
                                     self._door['room_name']) + ' because you asked me to.', 'RescueBot')
                             self._phase = Phase.ENTER_ROOM
@@ -559,8 +632,17 @@ class BaselineAgent(ArtificialBrain):
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'stone' in \
                             info['obj_id']:
                         objects.append(info)
+                        # Competence Update: Decrease trust in human if bot found obstacles at the entrance of the claimed searched area
+                        if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and self._door['room_name'] not in self._not_penalizable:
+                            competence_penalty = compute_search_competence_penalty_for_obstacle('stone', 1) #TODO: replace this hardcoded value with confidence level
+                            # Competence penalty for the human when the agent found a stone in a previously searched area
+                            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
+                            self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                            print("Search Competence Decreased: Stone found in previously searched area.")
+                            
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
+                            
                             # Trust Check
                             decision = StoneObstacleSession.process_trust(self, info)
                             # If decision is None, we trust the human and generate the prompt
@@ -608,9 +690,11 @@ class BaselineAgent(ArtificialBrain):
                             -1] == 'Remove together' or self._remove:
                             if not self._remove:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
+                            # Tell the human to come over and be idle until human arrives
                             if not state[{'is_human_agent': True}]:
-                                self._current_prompt.remove_together()
+                                tmp = StoneObstacleSession.help_remove_together(self, info)
+                                if tmp is not None:
+                                    return tmp
 
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
@@ -619,7 +703,6 @@ class BaselineAgent(ArtificialBrain):
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
                                 self._current_prompt.remove_together()
-
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
@@ -723,12 +806,21 @@ class BaselineAgent(ArtificialBrain):
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
                                         self._searched_rooms.append(self._door['room_name'])
+                                        # mark the area as searched by the agent
+                                        self._searched_rooms_by_agent.append(self._door['room_name'])
                                     # Do not continue searching the rest of the area but start planning to rescue the victim
                                     self._phase = Phase.FIND_NEXT_GOAL
 
                             
                             # Identify injured victim in the area
                             if 'healthy' not in vic and vic not in self._found_victims:
+                                # Competence Update: Penalize human if bot finds victim during re-searching**
+                                if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human)and self._door['room_name'] not in self._not_penalizable:
+                                    competence_penalty = compute_search_competence_penalty_for_victim(vic, 1) #TODO: introduce confidence lvl and tune this
+                                    self._trustBelief(self._team_members, self._trustBeliefs, self._folder, 'search', 'competence', competence_penalty)
+                                    self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                                    print("Search Competence Decreased: Found " + vic + " in " + self._door['room_name'] + " during re-searching.")
+                                    
                                 self._recent_vic = vic
                                 # Add the victim and the location to the corresponding dictionary
                                 self._found_victims.append(vic)
@@ -800,6 +892,10 @@ class BaselineAgent(ArtificialBrain):
                 # Add the area to the list of searched areas
                 if self._door['room_name'] not in self._searched_rooms:
                     self._searched_rooms.append(self._door['room_name'])
+                    # mark the area as searched by the agent
+                    self._searched_rooms_by_agent.append(self._door['room_name'])
+                    
+                    
                     
                     
                 # Make a plan to rescue a found critically injured victim if the human decides so
@@ -1047,14 +1143,27 @@ class BaselineAgent(ArtificialBrain):
             for member in teamMembers:
                 if mssg.from_id == member:
                     receivedMessages[member].append(mssg.content)
+                    
         # Check the content of the received messages
         for mssgs in receivedMessages.values():
             for msg in mssgs:
                 # If a received message involves team members searching areas, add these areas to the memory of areas that have been explored
-                if msg.startswith("Search:"):
+                if msg.startswith("Search:") and msg not in self._consumed_messages:
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
-                        self._searched_rooms.append(area)
+                        search_competence = self._trustBeliefs[self._human_name]['search']['competence']
+                        # scale to percentage
+                        # prob = (search_competence + 1) * 0.5
+                        prob = 1 #TODO: remove this line
+                        # Decision making: add the area to the memory of searched areas based on the probability
+                        rand = random.random() #TODO: what distribution to use?
+                        if rand > prob:
+                            self._searched_rooms.append(area)
+                    # always add the area to the memory of searched areas by human for competence evaluation later
+                    if area not in self._searched_rooms_claimed_by_human and area not in self._searched_rooms_by_agent:
+                        self._searched_rooms_claimed_by_human.append(area)
+                    # avoid processing the same message multiple times
+                    self._consumed_messages.add(msg)
                 # If a received message involves team members finding victims, add these victims and their locations to memory
                 if msg.startswith("Found:"):
                     # Identify which victim and area it concerns
@@ -1065,7 +1174,14 @@ class BaselineAgent(ArtificialBrain):
                     loc = 'area ' + msg.split()[-1]
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
-                        self._searched_rooms.append(loc)
+                        found_willingness = self._trustBeliefs[self._human_name]['rescue_yellow']['willingness'] if 'mild' in foundVic else self._trustBeliefs[self._human_name]['rescue_red']['willingness']
+                        # scale to percentage
+                        # prob = (found_willingness + 1) * 0.5
+                        prob = 1 #TODO: remove this line
+                        # Decision making: add the area to the memory of searched areas based on the probability
+                        rand = random.random() #TODO: what distribution to use?
+                        if rand > prob:
+                            self._searched_rooms.append(loc)
                     # Add the victim and its location to memory
                     if foundVic not in self._found_victims:
                         self._found_victims.append(foundVic)
@@ -1090,8 +1206,15 @@ class BaselineAgent(ArtificialBrain):
                     
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
-                        self._searched_rooms.append(loc)
-                    
+                        rescue_yellow_competence = self._trustBeliefs[self._human_name]['rescue_yellow']['competence']
+                        # scale to percentage
+                        # prob = (rescue_yellow_competence + 1) * 0.5
+                        prob = 1 #TODO: remove this line
+                        # Decision making: add the area to the memory of searched areas based on the probability
+                        rand = random.random() #TODO: what distribution to use?
+                        if rand > prob:
+                            self._searched_rooms.append(loc) # Partially trust the human
+                            
                     # Add the victim and location to the memory of found victims
                     if collectVic not in self._found_victims:
                         self._found_victims.append(collectVic)
@@ -1124,7 +1247,10 @@ class BaselineAgent(ArtificialBrain):
                         self._door = state.get_room_doors(area)[0]
                         self._doormat = state.get_room(area)[-1]['doormat']
                         if area in self._searched_rooms:
+                            # indicate that the human lied about searching the area
+                            # or that the human is not competent enough to find the obstacle?(tricking the bot)
                             self._searched_rooms.remove(area)
+                            #TODO: try to run this code and see if it penalizes the search competence
                         # Clear received messages (bug fix)
                         self.received_messages = []
                         self.received_messages_content = []
@@ -1190,12 +1316,11 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
-
-    
     def _trustBelief(self, members, trustBeliefs, folder, task, belief, increment):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
         '''
+        # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         # Update the trust value
         trustBeliefs[self._human_name][task][belief] += increment 
         # Restrict the belief value to a range of -1 to 1
@@ -1205,12 +1330,15 @@ class BaselineAgent(ArtificialBrain):
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             csv_writer.writerow(['name', 'task', 'competence', 'willingness'])
-            csv_writer.writerow([
-                self._human_name, 
-                task, 
-                trustBeliefs[self._human_name][task]['competence'],
-                trustBeliefs[self._human_name][task]['willingness']
-            ])
+            for name, tasks in trustBeliefs.items():
+                for task, values in tasks.items():
+                    csv_writer.writerow([name, task, values['competence'], values['willingness']])
+            # csv_writer.writerow([
+            #     self._human_name, 
+            #     task, 
+            #     trustBeliefs[self._human_name][task]['competence'],
+            #     trustBeliefs[self._human_name][task]['willingness']
+            # ])
 
         return trustBeliefs
    
@@ -1261,3 +1389,4 @@ class BaselineAgent(ArtificialBrain):
             else:
                 locs.append((x[i], max(y)))
         return locs
+    

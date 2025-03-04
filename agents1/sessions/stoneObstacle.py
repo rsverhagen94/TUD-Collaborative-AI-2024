@@ -51,6 +51,17 @@ class StoneObstacleSession(PromptSession):
         # Reset ttl
         self.ttl = ttl
 
+    # Static method for removal when no prompt is generated as the human asked the bot to remove an obstacle
+    @staticmethod
+    def help_remove_together(bot, info, ttl=400):
+        if not isinstance(bot._current_prompt, StoneObstacleSession):
+            print("Attaching a new StoneObstacleSession")
+            # Attach a new session to the bot
+            curr_session = StoneObstacleSession(bot, info, ttl)
+            curr_session.currPhase = StoneObstacleSession.StoneObstaclePhase.WAITING_HUMAN
+            bot._current_prompt = curr_session
+        return bot._current_prompt.wait()
+
     def complete_remove_together(self):
         print("Completed removal!")
         self.increment_values("remove_stone", 0.1, 0.2, self.bot)
