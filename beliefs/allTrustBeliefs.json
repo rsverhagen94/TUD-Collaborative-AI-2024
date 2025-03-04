@@ -1,1 +1,16 @@
-{}
+{
+    "useless": {
+        "search": {
+            "competence": 0,
+            "willingness": 0
+        },
+        "clear": {
+            "competence": 0,
+            "willingness": 0
+        },
+        "rescue": {
+            "competence": 0,
+            "willingness": 0
+        }
+    }
+}
