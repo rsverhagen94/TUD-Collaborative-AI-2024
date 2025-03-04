@@ -514,15 +514,16 @@ class BaselineAgent(ArtificialBrain):
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info[
                         'obj_id']:
                         objects.append(info)
+                        # Competence Update: Decrease trust in human if bot found obstacles at the entrance of the claimed searched area
+                        if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and self._door['room_name'] not in self._not_penalizable:
+                            competence_penalty = compute_search_competence_penalty_for_obstacle('rock', 1) #TODO: introduce confidence lvl and tune this
+                            # Competence penalty for the human when the agent found a rock in a previously searched area
+                            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
+                            self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                            print("Search Competence Decreased: Rock found in previously searched area.")
+                            
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
-                            if self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human:
-                                competence_penalty = compute_search_competence_penalty_for_obstacle('rock', 1) #TODO: introduce confidence lvl and tune this
-                                # Competence penalty for the human when the agent found a rock in a previously searched area
-                                self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
-                                self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
-                                print("Search Competence Decreased: Rock found in previously searched area.")
-                                
                             self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + ' \n explore - areas searched: area ' + str(
@@ -565,17 +566,17 @@ class BaselineAgent(ArtificialBrain):
                         
                         # print(f"Debug: _answered={self._answered}, _remove={self._remove}, _waiting={self._waiting}")
                         
+                        # Competence Update: Decrease trust in human if bot found obstacles at the entrance of the claimed searched area
+                        if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and self._door['room_name'] not in self._not_penalizable:
+                            competence_penalty = compute_search_competence_penalty_for_obstacle('tree', 1)
+                            # Competence penalty for the human when the agent found a tree in a previously searched area
+                            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty) #TODO: change this hardcoded value
+                            self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                            print("Search Competence Decreased: Tree found in previously searched area.")
+                            
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
                             print("reached tree if statement")
-                            
-                            if self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human:
-                                competence_penalty = compute_search_competence_penalty_for_obstacle('tree', 1)
-                                # Competence penalty for the human when the agent found a tree in a previously searched area
-                                self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty) #TODO: change this hardcoded value
-                                self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
-                                print("Search Competence Decreased: Tree found in previously searched area.")
-                                
                             # Trust Check
                             decision = TreeObstacleSession.process_trust(self, info)
                             # If decision is None, we trust the human and generate the prompt
@@ -611,6 +612,11 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
                                                   'RescueBot')
                             if self._remove:
+                                # if self._door['room_name'] in self._searched_rooms_claimed_by_human and self._door['room_name'] not in self._not_penalizable:
+                                #     competence_penalty = compute_search_competence_penalty_for_obstacle('tree', 1)
+                                #     self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
+                                #     self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                                #     print("Search Competence Decreased: Tree found in previously searched area.")
                                 TreeObstacleSession.help_remove_tree(self)
                                 self._send_message('Removing tree blocking ' + str(
                                     self._door['room_name']) + ' because you asked me to.', 'RescueBot')
@@ -626,15 +632,17 @@ class BaselineAgent(ArtificialBrain):
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'stone' in \
                             info['obj_id']:
                         objects.append(info)
+                        # Competence Update: Decrease trust in human if bot found obstacles at the entrance of the claimed searched area
+                        if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and self._door['room_name'] not in self._not_penalizable:
+                            competence_penalty = compute_search_competence_penalty_for_obstacle('stone', 1) #TODO: replace this hardcoded value with confidence level
+                            # Competence penalty for the human when the agent found a stone in a previously searched area
+                            self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
+                            self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
+                            print("Search Competence Decreased: Stone found in previously searched area.")
+                            
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
-                            if self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human:
-                                competence_penalty = compute_search_competence_penalty_for_obstacle('stone', 1) #TODO: replace this hardcoded value with confidence level
-                                # Competence penalty for the human when the agent found a stone in a previously searched area
-                                self._trustBelief(self._team_members, self._trustBeliefs, self._folder, "search", "competence", competence_penalty)
-                                self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
-                                print("Search Competence Decreased: Stone found in previously searched area.")
-                                
+                            
                             # Trust Check
                             decision = StoneObstacleSession.process_trust(self, info)
                             # If decision is None, we trust the human and generate the prompt
@@ -695,7 +703,6 @@ class BaselineAgent(ArtificialBrain):
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
                                 self._current_prompt.remove_together()
-
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
