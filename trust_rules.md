@@ -8,6 +8,7 @@ The trust will be lowered in the following phases/situations:
         - when the human wants to help the agent remove a TREE, the remove willingness is increased
         - when the human refuses to help the agent remove a STONE, the remove willingness is lowered based on the human's distance to the robot
         - when the human wants to help the agent remove a STONE, the remove willingness is increased based on the human's distance to the robot + the remove competence is increased
+        - when the human lies about the location of an obstacle, both remove willingness and remove competence are decreased
     - FOLLOW_ROOM_SEARCH_PATH
         - if human tells agent a victim is in a room and the victim was actually there, the rescue willingness and search competence + willingness go up
         - for critically injured victims:
