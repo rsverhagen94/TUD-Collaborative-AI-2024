@@ -2,8 +2,18 @@ import enum
 from abc import abstractmethod
 
 
+class Scenario(enum.Enum):
+    USE_TRUST_MECHANISM = 0
+    ALWAYS_TRUST = 1
+    NEVER_TRUST = 2
+    RANDOM_TRUST = 3
+
+
 # Class to manage which prompt was last encountered by the bot
 class PromptSession:
+    # Shared variable across all instances of PromptSession
+    scenario_used = Scenario.USE_TRUST_MECHANISM
+
     def __init__(self, bot, info, ttl=100):
         self.bot = bot
         self.info = info  # Store info about the current object (used for directing removal)

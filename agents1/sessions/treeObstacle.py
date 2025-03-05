@@ -1,6 +1,5 @@
 import enum
-from agents1.eventUtils import PromptSession
-
+from agents1.eventUtils import PromptSession, Scenario
 
 class TreeObstacleSession(PromptSession):
     def __init__(self, bot, info, ttl=100):
@@ -8,6 +7,20 @@ class TreeObstacleSession(PromptSession):
 
     @staticmethod
     def process_trust(bot, info):
+        if PromptSession.scenario_used == Scenario.ALWAYS_TRUST:
+            return None
+        elif PromptSession.scenario_used == Scenario.NEVER_TRUST:
+            bot._answered = True
+            bot._waiting = False
+            bot._send_message('Removing tree blocking ' + str(bot._door['room_name']) + '.',
+                              'RescueBot')
+            from agents1.OfficialAgent import Phase, RemoveObject
+            bot._phase = Phase.ENTER_ROOM
+            bot._remove = False
+
+            return RemoveObject.__name__, {'object_id': info['obj_id']}
+
+
         LOW_COMPETENCE_THRESHOLD = 0.1
         LOW_WILLINGNESS_THRESHOLD = 0.1
 
@@ -30,12 +43,14 @@ class TreeObstacleSession(PromptSession):
 
     def continue_tree(self):
         print("Continue Tree heard")
-        self.increment_values("remove_tree", -0.1, 0, self.bot)
+        if self.scenario_used == Scenario.USE_TRUST_MECHANISM:
+            self.increment_values("remove_tree", -0.1, 0, self.bot)
         self.delete_self()
 
     def remove_tree(self):
         print("Remove Tree heard")
-        self.increment_values("remove_tree", 0.1, 0, self.bot)
+        if self.scenario_used == Scenario.USE_TRUST_MECHANISM:
+            self.increment_values("remove_tree", 0.1, 0, self.bot)
         self.delete_self()
 
     # Static method for removal when no prompt is generated as the human asked the bot to remove an obstacle
@@ -46,7 +61,8 @@ class TreeObstacleSession(PromptSession):
 
     def on_timeout(self):
         print("Timed out waiting for response!")
-        self.increment_values("remove_tree", -0.15, -0.15, self.bot)
+        if self.scenario_used == Scenario.USE_TRUST_MECHANISM:
+            self.increment_values("remove_tree", -0.15, -0.15, self.bot)
 
         self.bot._answered = True
         self.bot._waiting = False
