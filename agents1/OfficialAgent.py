@@ -1152,7 +1152,7 @@ class BaselineAgent(ArtificialBrain):
                     if condition != 'weak' and collectVic not in self._claimed_collected_victims:
                         # self._collected_victims.append(collectVic)
                         self._claimed_collected_victims.append(collectVic)
- 
+                         
                     # Decide to help the human carry the victim together when the human's condition is weak
                     if condition == 'weak':
                         self._rescue = 'together'
