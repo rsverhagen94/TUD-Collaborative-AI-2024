@@ -1476,6 +1476,7 @@ class BaselineAgent(ArtificialBrain):
         # Set a default starting trust value
         # TODO: Discuss with team members what the default trust value should be,
         #  for now we set it to 0.5, note that the trust value should be in the range of -1 to 1
+        search_default = 0.0
         default = 0.5
         trustfile_header = []
         trustfile_contents = []
@@ -1504,7 +1505,10 @@ class BaselineAgent(ArtificialBrain):
 
         for task in self._tasks:
             if task not in trustBeliefs[self._human_name]:  # Only initialize if missing
-                trustBeliefs[self._human_name][task] = {'competence': default, 'willingness': default}
+                if task == 'search':
+                    trustBeliefs[self._human_name][task] = {'competence': search_default, 'willingness': search_default}
+                else:
+                    trustBeliefs[self._human_name][task] = {'competence': default, 'willingness': default}
 
         return trustBeliefs
 
