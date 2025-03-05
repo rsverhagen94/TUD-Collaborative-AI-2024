@@ -44,6 +44,10 @@ class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
         # Initialization of some relevant variables
+        self._waiting_for_human_to_remove_together = False  # Tracks if we are waiting for human to arrive
+        self._remove_together_chosen = False  # Tracks if human selected "Remove together"
+        self._competence_passed_for_removal = None  # Tracks result of competence check
+
         self._tick = None
         self._slowdown = slowdown
         self._condition = condition
@@ -417,14 +421,18 @@ class BaselineAgent(ArtificialBrain):
                             else:
                                 self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1, 0.1)
                         # Wait for the human to help removing the obstacle and remove the obstacle together
-                        if self.received_messages_content and self.received_messages_content[
-                            -1] == 'Remove' or self._remove:
-                            if not self._remove:
+                        if (self.received_messages_content and self.received_messages_content[
+                            -1] == 'Remove') or self._remove_together_chosen:
+                            if not self._remove_together_chosen:
+                                self._remove_together_chosen = True  # Mark that "Remove together" was chosen
                                 self._answered = True
+
                             # Tell the human to come over and be idle untill human arrives
                             if not state[{'is_human_agent': True}]:
                                 self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
                                                   'RescueBot')
+                                self._waiting_for_human_to_remove_together = True  # Start waiting
+                                
                                 if self._distance_human=='close':
                                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
                                 else:
@@ -433,8 +441,12 @@ class BaselineAgent(ArtificialBrain):
                             
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
-                                self._send_message('Lets remove rock blocking ' + str(self._door['room_name']) + '!',
+                                self._send_message('Great to see you! Lets remove rock blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
+
+                                # Reset flags now that removal has started
+                                self._waiting_for_human_to_remove_together = False
+                                self._remove_together_chosen = False
                                 return None, {}
                         # Remain idle untill the human communicates what to do with the identified obstacle 
                         else:
@@ -546,34 +558,34 @@ class BaselineAgent(ArtificialBrain):
                                               'RescueBot')
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
+                            self._remove_together_chosen = False
                             if self._distance_human == 'close':
                                 self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1, 0.1)
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
                         # Remove the obstacle together if the human decides so
-                        if self.received_messages_content and self.received_messages_content[
-                            -1] == 'Remove together' or self._remove:
+                        if (self.received_messages_content and self.received_messages_content[
+                            -1] == 'Remove together') or self._remove or self._remove_together_chosen:
 
-                            # Perform competence and willingness check for removal
-                            competence_pass = self._passesCompetenceCheckForRemoval()
+                            if not self._remove_together_chosen:
+                                self._competence_passed_for_removal = self._passesCompetenceCheckForRemoval()  # Perform competence check
+                                self._remove_together_chosen = True  # Mark that the choice has been made
 
-                            if competence_pass:
-                                if not self._remove:
-                                    self._answered = True
-                                # Tell the human to come over and be idle untill human arrives
-                                if not state[{'is_human_agent': True}]:
-                                    self._send_message(
-                                        'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
-                                        'RescueBot')
-                                    if self._distance_human == 'far':
-                                        self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
-                                    else:
-                                        self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
-                                    return None, {}
-                                # Tell the human to remove the obstacle when he/she arrives
-                                if state[{'is_human_agent': True}]:
-                                    self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
-                                                    'RescueBot')
-                                    return None, {}
+                            if self._competence_passed_for_removal:
+                                # Send message *only once* to ask the human to come
+                                if not self._waiting_for_human_to_remove_together:
+                                    self._send_message(f'Please come to {self._door["room_name"]} to remove stones together.', 'RescueBot')
+                                    self._waiting_for_human_to_remove_together = True  # Start waiting
+
+                                # Keep checking if the human has arrived
+                                if state[{'is_human_agent': True}]:  # Human arrived!
+                                    self._send_message(f'Let’s remove the obstacle in {self._door["room_name"]}!', 'RescueBot')
+
+                                    # Reset flags and perform removal together
+                                    self._waiting_for_human_to_remove_together = False
+                                    self._remove_together_chosen = False
+                                    self._competence_passed_for_removal = None
+                                    
+                                return None, {}       
                             else:
                                 # ❌ Human is not trusted → Force removal
                                 self._send_message("Sorry, I don't trust you! I decided to remove the stones alone!", 'RescueBot')
@@ -582,6 +594,8 @@ class BaselineAgent(ArtificialBrain):
                                 self._answered = True
                                 self._waiting = False
                                 self._remove = True  
+                                self._remove_together_chosen = False
+                                self._competence_passed_for_removal = None
                                 self._phase = Phase.ENTER_ROOM
 
                                 action = RemoveObject.__name__, {'object_id': info['obj_id']}
