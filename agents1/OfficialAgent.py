@@ -961,7 +961,8 @@ class BaselineAgent(ArtificialBrain):
         "search_room_intent":            {"task": "search", "impact": 0.3, "weight": 0.2},
         "idle":                          {"task": "search", "impact": -0.1, "weight": 0.1},
         "ignore":                        {"task": "clear", "impact": -0.2, "weight": 0.2},
-        "lie_searching":                 {"task": "clear", "impact": -0.5, "weight": 1.0},
+        "ignore_rescue":                 {"task": "rescue", "impact": -0.4, "weight": 0.5},
+        "lie_searching":                 {"task": "search", "impact": -0.5, "weight": 1.0},
         "lie_victim_found":              {"task": "search", "impact": -0.8, "weight": 1.0},
         "abandom_victim_transport":      {"task": "rescue", "impact": -1.0, "weight": 1.0},
     }
@@ -1017,7 +1018,7 @@ class BaselineAgent(ArtificialBrain):
                             self._updateTrust(trustBeliefs, "rescue_victim", task_repetitions['rescue']['positive'])
                 if 'found mildly injured' in current_msg and 'close' in current_msg and ('rescue alone' in next_msg or 'continue' in next_msg):
                     task_repetitions['rescue']['negative'] += 1
-                    self._updateTrust(trustBeliefs, "carry_victim_intent", task_repetitions['rescue']['negative'])
+                    self._updateTrust(trustBeliefs, "ignore_rescue", task_repetitions['rescue']['negative'])
 
                 if 'found critically injured' in current_msg and 'close' in current_msg and 'rescue' in next_msg:
                     task_repetitions['rescue']['positive'] += 1
@@ -1028,7 +1029,7 @@ class BaselineAgent(ArtificialBrain):
                             self._updateTrust(trustBeliefs, "help_carry_critical_victim", task_repetitions['rescue']['positive'])
                 if 'found critically injured' in current_msg and 'close' in current_msg and 'continue' in next_msg:
                     task_repetitions['rescue']['negative'] += 1
-                    self._updateTrust(trustBeliefs, "carry_victim_intent", task_repetitions['rescue']['negative'])
+                    self._updateTrust(trustBeliefs, "ignore_rescue", task_repetitions['rescue']['negative'])
 
                 if 'found rock' in current_msg and 'close' in current_msg and 'remove' in next_msg:
                     task_repetitions['clear']['positive'] += 1
@@ -1075,7 +1076,7 @@ class BaselineAgent(ArtificialBrain):
                 
                 if 'i searched the whole area without finding' in current_msg:
                     task_repetitions['search']['negative'] += 1
-                    self._updateTrust(trustBeliefs, "lie_searching", task_repetitions['search']['negative'])
+                    self._updateTrust(trustBeliefs, "lie_victim_found", task_repetitions['search']['negative'])
                 
                 if 'waited' in current_msg and "didn't show up" in current_msg:
                     seconds_match = re.search(r'(\d+)\s*seconds', current_msg)
@@ -1093,14 +1094,14 @@ class BaselineAgent(ArtificialBrain):
                 
                 if 'human said he searched room' in current_msg:
                     if 'critically injured' in current_msg:
-                        task_repetitions['rescue']['negative'] += 1
-                        self._updateTrust(trustBeliefs, "lie_victim_found", task_repetitions['rescue']['negative'])
+                        task_repetitions['search']['negative'] += 1
+                        self._updateTrust(trustBeliefs, "lie_searching", task_repetitions['search']['negative'])
                     elif 'mildly injured' in current_msg:
-                        task_repetitions['rescue']['negative'] += 1
-                        self._updateTrust(trustBeliefs, "lie_victim_found", task_repetitions['rescue']['negative'])
+                        task_repetitions['search']['negative'] += 1
+                        self._updateTrust(trustBeliefs, "lie_searching", task_repetitions['search']['negative'])
                     elif 'obstacle' in current_msg:
-                        task_repetitions['clear']['negative'] += 1
-                        self._updateTrust(trustBeliefs, "lie_searching", task_repetitions['clear']['negative'])
+                        task_repetitions['search']['negative'] += 1
+                        self._updateTrust(trustBeliefs, "lie_searching", task_repetitions['search']['negative'])
 
         # Save current trust belief values so we can later use and retrieve them to add to a json file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
@@ -1165,7 +1166,10 @@ class BaselineAgent(ArtificialBrain):
         '''
         Implements exponential growth (positive x values) and exponential decay (negative x values): https://en.wikipedia.org/wiki/Exponential_decay
         '''
-        return alpha * np.exp(beta * x)
+        if x >= 0:
+            return alpha * np.exp(beta * x)
+        else:
+            return -alpha * np.exp(beta * abs(x))
 
     def _logistic(self, x, L, k, x0):
         '''
