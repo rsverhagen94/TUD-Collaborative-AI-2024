@@ -208,11 +208,10 @@ class BaselineAgent(ArtificialBrain):
                     if isinstance(self._yellow_victim_session, PromptSession):
                         self._number_of_yellow_victims_saved += 1
                         self._yellow_victim_session.delete_yellow_victim_session()
-                #
-                        
 
                 if 'critical' in info['is_carrying'][0]['obj_id']:
                     if isinstance(self._red_victim_session, PromptSession):
+                        self._number_of_red_victims_saved += 1
                         self._red_victim_session.delete_red_victim_session()
 
                 # If victim is being carried, add to collected victims memory
@@ -999,13 +998,11 @@ class BaselineAgent(ArtificialBrain):
                     # mark the area as searched by the agent
                     self._searched_rooms_by_agent.append(self._door['room_name'])
                     
-                    
-                    
-                    
-                # Make a plan to rescue a found critically injured victim if the human decides so
-                if self.received_messages_content and self.received_messages_content[
-                    -1] == 'Rescue together' and 'critical' in self._recent_vic:
 
+                # Make a plan to rescue a found critically injured victim if the human decides so
+                if self.received_messages_content and self._recent_vic \
+                    and self.received_messages_content[-1] == 'Rescue together' \
+                    and 'critical' in self._recent_vic:
                     self._rescue = 'together'
                     self._answered = True
                     self._waiting = False
@@ -1024,7 +1021,6 @@ class BaselineAgent(ArtificialBrain):
                         self._send_message('Lets carry ' + str(
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                             self._recent_vic) + '.', 'RescueBot')
-                        
                     self._goal_vic = self._recent_vic
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
@@ -1077,7 +1073,11 @@ class BaselineAgent(ArtificialBrain):
                     
                 # Continue searching other areas if the human decides so
                 if self.received_messages_content and self.received_messages_content[-1] == 'Continue':
-                    self._yellow_victim_session.robot_continue_rescue()
+                    # Check if the recent victim is a yellow or red victim
+                    if isinstance(self._yellow_victim_session, YellowVictimSession):
+                        self._yellow_victim_session.robot_continue_rescue()
+                    elif isinstance(self._red_victim_session, RedVictimSession):
+                        self._red_victim_session.robot_continue_rescue()
                     
                     self._answered = True
                     self._waiting = False
@@ -1099,7 +1099,6 @@ class BaselineAgent(ArtificialBrain):
                     self._recent_vic = None
                     self._phase = Phase.FIND_NEXT_GOAL
                 return Idle.__name__, {'duration_in_ticks': 25}
-
 
 
             if Phase.PLAN_PATH_TO_VICTIM == self._phase:
@@ -1127,7 +1126,7 @@ class BaselineAgent(ArtificialBrain):
                     self._phase = Phase.TAKE_VICTIM
 
 
-
+# --------------------
             if Phase.TAKE_VICTIM == self._phase:
                 # Store all area tiles in a list
                 room_tiles = [info['location'] for info in state.values()
@@ -1164,31 +1163,60 @@ class BaselineAgent(ArtificialBrain):
                                     return None, {}
                         
 
-                        if 'critical' in self._goal_vic and self._rescue == 'together':
-                            # Check if the human is actually on this tile
-                            if not state[{'is_human_agent': True}]:
-                                # Human not visible => remain idle until they arrive
+                        if 'critical' in info['obj_id'] and self._rescue == 'together':
+                            # If we have an active RedVictimSession, let it run
+                            if isinstance(self._red_victim_session, RedVictimSession):
+                                timed_out = self._red_victim_session.wait()
+                                if timed_out == 1:
+                                    # Timed out => user never arrived => skip rescue
+                                    self._waiting = False
+                                    self._moving = False
+                                    self._phase = Phase.FIND_NEXT_GOAL
+                                    # Possibly remove victim from _todo if you want to skip
+                                    if self._goal_vic in self._todo:
+                                        self._todo.remove(self._goal_vic)
+                                    return None, {}
+
+                                # The session is still active but we might be WAITING_HUMAN. 
+                                # If so, remain idle.
+                                if self._red_victim_session.currPhase == RedVictimSession.RedVictimPhase.WAITING_HUMAN:
+                                    self._waiting = True
+                                    self._moving = False
+                                    return None, {}
+                                
+                                # Otherwise, if the user has shown up, we can proceed to carry together.
+                                # We do that below after the for-loop. 
+                                # (Or you can do it here if you want a direct check.)
+                            else:
+                                # If we expected a rescue 'together' but there's no session at all,
+                                # either create or skip. Typically you might skip or just remain idle.
                                 self._waiting = True
                                 self._moving = False
                                 return None, {}
-                            else:
-                                # Human is here => pick up together
-                                if self._goal_vic not in self._collected_victims:
-                                    self._collected_victims.append(self._goal_vic)
-
-                                self._carrying_together = True
-                                self._phase = Phase.PLAN_PATH_TO_DROPPOINT  # next step: carry to drop zone
-
-                                return CarryObjectTogether.__name__, {
-                                    'object_id': info['obj_id'],
-                                    'human_name': self._human_name
-                                }
                 
                         # Remain idle when the human has not arrived at the location
-                        if not self._human_name in info['name']:
-                            self._waiting = True
-                            self._moving = False
-                            return None, {}
+                        # if not info.get('is_human_agent', False):
+                        #     # That means this object is not the human
+                        #     self._waiting = True
+                        #     self._moving = False
+                        #     return None, {}
+                
+                # 4) If it’s a CRITICAL (red) victim with rescue = ‘together’ and we are past WAITING_HUMAN,
+                #    we pick up together.
+                if 'critical' in self._goal_vic and self._rescue == 'together':
+                    # We only do the pick-up if the victim’s tile is in range and the session is not waiting.
+                    # Typically you might confirm the user is there, but we rely on the session check above.
+                    # If the session is done waiting and not timed out => the user is present => pick up:
+                    if self._goal_vic not in self._collected_victims:
+                        self._collected_victims.append(self._goal_vic)
+                    self._carrying_together = True
+                    self._phase = Phase.PLAN_PATH_TO_DROPPOINT
+
+                    return CarryObjectTogether.__name__, {
+                        'object_id': self._found_victim_logs[self._goal_vic]['obj_id'],
+                        'human_name': self._human_name
+                    }
+
                 
                 # Add the victim to the list of rescued victims when it has been picked up
                 if len(objects) == 0 and 'critical' in self._goal_vic or len(
@@ -1196,6 +1224,9 @@ class BaselineAgent(ArtificialBrain):
                     
                     if 'mild' in self._goal_vic:
                         print("Dropped Yellow Victim Together")
+
+                    if 'critical' in self._goal_vic:
+                        print("Dropped Red Victim Together")
                     
                     self._waiting = False
                     if self._goal_vic not in self._collected_victims:
@@ -1243,11 +1274,11 @@ class BaselineAgent(ArtificialBrain):
                 if 'mild' in self._goal_vic and self._rescue == 'alone':
                     self._send_message('Delivered ' + self._goal_vic + ' at the drop zone.', 'RescueBot')
                 
+                # Critical => finalize redVictimSession (if active)
                 if 'critical' in self._goal_vic:
-                    # We only call complete_rescue_together() if the session is active
                     if isinstance(self._red_victim_session, RedVictimSession):
+                        # This finalizes the rescue, includes time-based trust update
                         self._red_victim_session.complete_rescue_together()
-                        # This internally does the final time-based trust update
                         self._red_victim_session.delete_red_victim_session()
                     self._send_message(f"Delivered {self._goal_vic} (critical) at the drop zone.", "RescueBot")
                 
@@ -1259,7 +1290,7 @@ class BaselineAgent(ArtificialBrain):
                 self._carrying = False
                 # Drop the victim on the correct location on the drop zone
                 return Drop.__name__, {'human_name': self._human_name}
-
+# --------------------
 
 
     def _get_drop_zones(self, state):
