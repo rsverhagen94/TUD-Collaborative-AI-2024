@@ -372,14 +372,23 @@ class BaselineAgent(ArtificialBrain):
                         objects.append(info)
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
-                            self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
-                                Important features to consider are: \n safe - victims rescued: ' + str(
-                                self._collected_victims) + ' \n explore - areas searched: area ' + str(
-                                self._searched_rooms).replace('area ', '') + ' \
-                                \n clock - removal time: 5 seconds \n afstand - distance between us: ' + self._distance_human,
-                                              'RescueBot')
-                            self._waiting = True
-                            # Determine the next area to explore if the human tells the agent not to remove the obstacle
+                            #Case to not trust the agent
+                            if self._check_user_trust(trustBeliefs):
+                                self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
+                                    Important features to consider are: \n safe - victims rescued: ' + str(
+                                    self._collected_victims) + ' \n explore - areas searched: area ' + str(
+                                    self._searched_rooms).replace('area ', '') + ' \
+                                    \n clock - removal time: 5 seconds \n afstand - distance between us: ' + self._distance_human,
+                                                  'RescueBot')
+                                self._waiting = True
+                                # Determine the next area to explore if the human tells the agent not to remove the obstacle
+                            else:
+                                print('skip')
+                                self._answered = True
+                                self._waiting = False
+                                self._to_search.append(self._door['room_name'])
+                                self._phase = Phase.FIND_NEXT_GOAL
+
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             self._answered = True
@@ -476,19 +485,26 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
-                            if not self._remove:
+                            if self._check_user_trust(trustBeliefs):
+                                if not self._remove:
+                                    self._answered = True
+                                # Tell the human to come over and be idle untill human arrives
+                                if not state[{'is_human_agent': True}]:
+                                    self._send_message(
+                                        'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
+                                        'RescueBot')
+                                    return None, {}
+                                # Tell the human to remove the obstacle when he/she arrives
+                                if state[{'is_human_agent': True}]:
+                                    self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
+                                                      'RescueBot')
+                                    return None, {}
+                            # Continue if the agent is not trustworthy
+                            else:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
-                            if not state[{'is_human_agent': True}]:
-                                self._send_message(
-                                    'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
-                                    'RescueBot')
-                                return None, {}
-                            # Tell the human to remove the obstacle when he/she arrives
-                            if state[{'is_human_agent': True}]:
-                                self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
-                                                  'RescueBot')
-                                return None, {}
+                                self._waiting = False
+                                self._to_search.append(self._door['room_name'])
+                                self._phase = Phase.FIND_NEXT_GOAL
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
@@ -589,13 +605,20 @@ class BaselineAgent(ArtificialBrain):
                                                                 'obj_id': info['obj_id']}
                                 # Communicate which victim the agent found and ask the human whether to rescue the victim now or at a later stage
                                 if 'mild' in vic and self._answered == False and not self._waiting:
-                                    self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue together", "Rescue alone", or "Continue" searching. \n \n \
-                                        Important features to consider are: \n safe - victims rescued: ' + str(
-                                        self._collected_victims) + '\n explore - areas searched: area ' + str(
-                                        self._searched_rooms).replace('area ', '') + '\n \
-                                        clock - extra time when rescuing alone: 15 seconds \n afstand - distance between us: ' + self._distance_human,
-                                                      'RescueBot')
-                                    self._waiting = True
+                                    if self._check_user_trust(trustBeliefs):
+                                        self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue together", "Rescue alone", or "Continue" searching. \n \n \
+                                            Important features to consider are: \n safe - victims rescued: ' + str(
+                                            self._collected_victims) + '\n explore - areas searched: area ' + str(
+                                            self._searched_rooms).replace('area ', '') + '\n \
+                                            clock - extra time when rescuing alone: 15 seconds \n afstand - distance between us: ' + self._distance_human,
+                                                          'RescueBot')
+                                        self._waiting = True
+                                    else:
+                                        print('skip')
+                                        self._answered = True
+                                        self._waiting = False
+                                        self._to_search.append(self._door['room_name'])
+                                        self._phase = Phase.FIND_NEXT_GOAL
 
                                 if 'critical' in vic and self._answered == False and not self._waiting:
                                     self._send_message('Found ' + vic + ' in ' + self._door['room_name'] + '. Please decide whether to "Rescue" or "Continue" searching. \n\n \
@@ -954,6 +977,10 @@ class BaselineAgent(ArtificialBrain):
                                  trustBeliefs[self._human_name]['willingness']])
 
         return trustBeliefs
+    
+    def _check_user_trust(self, trustBeliefs):
+        return trustBeliefs[self._human_name]['competence'] >= 0.6 and trustBeliefs[self._human_name]['willingness'] >= 0.6
+        
 
     def _send_message(self, mssg, sender):
         '''
