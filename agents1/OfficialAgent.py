@@ -1349,7 +1349,7 @@ class BaselineAgent(ArtificialBrain):
                         prob = 1 #TODO: remove this line
                         # Decision making: add the area to the memory of searched areas based on the probability
                         rand = random.random() #TODO: what distribution to use?
-                        if rand > prob:
+                        if rand <= prob:
                             self._searched_rooms.append(area)
                     # always add the area to the memory of searched areas by human for competence evaluation later
                     if area not in self._searched_rooms_claimed_by_human and area not in self._searched_rooms_by_agent:
@@ -1372,7 +1372,7 @@ class BaselineAgent(ArtificialBrain):
                         prob = 1 #TODO: remove this line
                         # Decision making: add the area to the memory of searched areas based on the probability
                         rand = random.random() #TODO: what distribution to use?
-                        if rand > prob:
+                        if rand <= prob:
                             self._searched_rooms.append(loc)
                     # Add the victim and its location to memory
                     if foundVic not in self._found_victims:
@@ -1404,7 +1404,7 @@ class BaselineAgent(ArtificialBrain):
                         prob = 1 #TODO: remove this line
                         # Decision making: add the area to the memory of searched areas based on the probability
                         rand = random.random() #TODO: what distribution to use?
-                        if rand > prob:
+                        if rand <= prob:
                             self._searched_rooms.append(loc) # Partially trust the human
 
                     # Add the victim and location to the memory of found victims
