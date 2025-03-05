@@ -140,7 +140,7 @@ class TrustService:
 
         # Retrieve the current score for the specified trust belief.
         current_score = self.trust_scores[user_id][trust_belief]
-        new_score = self.get_new_score_logarithmic(current_score,value,weight,-1,1)
+        new_score = self.get_new_score_logarithmic(current_score,value,weight)
 
         # Update the trust score.
         self.trust_scores[user_id][trust_belief] = new_score
