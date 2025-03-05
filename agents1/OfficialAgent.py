@@ -962,23 +962,17 @@ class BaselineAgent(ArtificialBrain):
         "idle":                          {"task": "search", "impact": -0.1, "weight": 0.1},
         "ignore":                        {"task": "clear", "impact": -0.2, "weight": 0.2},
         "lie_searching":                 {"task": "clear", "impact": -0.5, "weight": 1.0},
-        "lie_victim_found":              {"task": "clear", "impact": -0.8, "weight": 1.0},
+        "lie_victim_found":              {"task": "search", "impact": -0.8, "weight": 1.0},
         "abandom_victim_transport":      {"task": "rescue", "impact": -1.0, "weight": 1.0},
     }
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
-        '''
-        Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
-        '''
-        # Update the trust value based on for example the received messages
-        for message in receivedMessages:
-            # Increase agent trust in a team member that rescued a victim
-            if 'Collect' in message:
-                self._updateTrust(trustBeliefs, "rescue_victim", 1) # Just an example of how to use updateTrust instead of += some number.
-                #trustBeliefs['rescue']['competence'] += 0.10
-                # Restrict the competence belief to a range of -1 to 1
-                #trustBeliefs['rescue']['competence'] = np.clip(trustBeliefs['rescue']['competence'], -1,1)
-
+        """
+        Updates trust belief values based on received messages.
+        """
+        # Dictionary to track positive and negative repetitions for each task
+        task_repetitions = {task: {"positive": 0, "negative": 0} for task in self.TASKS}
+    
         victim_types = [
         "critically injured girl",
         "critically injured elderly woman",
@@ -1011,65 +1005,77 @@ class BaselineAgent(ArtificialBrain):
                     self._last_processed_index += len(new_msgs)
     
         for i, message in enumerate(self._all_messages):
-            print(i)
             current_msg = message.lower()
             next_msg = self._all_messages[i+1].lower() if i+1 < len(self._all_messages) else None
-            print('first: ' + current_msg)
             if next_msg != None:
                 if 'found mildly injured' in current_msg and 'close' in current_msg and 'rescue together' in next_msg:
-                    trustBeliefs['rescue']['willingness'] = update_trust(current, 0.15) 
+                    task_repetitions['rescue']['positive'] += 1
+                    self._updateTrust(trustBeliefs, "carry_victim_intent", task_repetitions['rescue']['positive'])
                     for victim in victim_types:
                         if victim in current_msg and victim in self._collected_victims:
-                            trustBeliefs['rescue']['competence'] += 0.1
+                            task_repetitions['rescue']['positive'] += 1
+                            self._updateTrust(trustBeliefs, "rescue_victim", task_repetitions['rescue']['positive'])
                 if 'found mildly injured' in current_msg and 'close' in current_msg and ('rescue alone' in next_msg or 'continue' in next_msg):
-                    trustBeliefs['rescue']['willingness'] -= 0.1
+                    task_repetitions['rescue']['negative'] += 1
+                    self._updateTrust(trustBeliefs, "carry_victim_intent", task_repetitions['rescue']['negative'])
 
                 if 'found critically injured' in current_msg and 'close' in current_msg and 'rescue' in next_msg:
-                    trustBeliefs['rescue']['willingness'] += 0.2
+                    task_repetitions['rescue']['positive'] += 1
+                    self._updateTrust(trustBeliefs, "carry_victim_intent", task_repetitions['rescue']['positive'])
                     for victim in victim_types:
                         if victim in current_msg and victim in self._collected_victims:
-                            trustBeliefs['rescue']['competence'] += 0.2
+                            task_repetitions['rescue']['positive'] += 1
+                            self._updateTrust(trustBeliefs, "help_carry_critical_victim", task_repetitions['rescue']['positive'])
                 if 'found critically injured' in current_msg and 'close' in current_msg and 'continue' in next_msg:
-                    trustBeliefs['rescue']['willingness'] = update_trust(trustBeliefs['rescue']['willingness'], -0.2, )
+                    task_repetitions['rescue']['negative'] += 1
+                    self._updateTrust(trustBeliefs, "carry_victim_intent", task_repetitions['rescue']['negative'])
 
                 if 'found rock' in current_msg and 'close' in current_msg and 'remove' in next_msg:
-                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    task_repetitions['clear']['positive'] += 1
+                    self._updateTrust(trustBeliefs, "help_remove_obstacle", task_repetitions['clear']['positive'])
                     area_match = re.search(r'area\s*(\d+)', current_msg)
                     if area_match:
                         blocked_area = "area " + area_match.group(1)
-                        print('blocked:' + blocked_area)
-                        print('searched:' + str(self._searched_rooms))
                         # Check if the blocked area is in the list of searched rooms.
                         if blocked_area in self._searched_rooms:
-                            trustBeliefs['destroy obstacles']['competence'] += 0.10
+                            task_repetitions['clear']['positive'] += 1
+                            self._updateTrust(trustBeliefs, "remove_obstacle_together_near", task_repetitions['clear']['positive'])
                 
                 if 'found rock' in current_msg and 'close' in current_msg and 'continue' in next_msg:
-                    trustBeliefs['destroy obstacles']['willingness'] -= 0.1
+                    task_repetitions['clear']['negative'] += 1
+                    self._updateTrust(trustBeliefs, "ignore", task_repetitions['clear']['negative'])
 
                 if 'found stones' in current_msg and 'close' in current_msg and 'remove together' in next_msg:
-                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
+                    task_repetitions['clear']['positive'] += 1
+                    self._updateTrust(trustBeliefs, "help_remove_obstacle", task_repetitions['clear']['positive'])
                     area_match = re.search(r'area\s*(\d+)', current_msg)
                     if area_match:
                         blocked_area = "area " + area_match.group(1)
                         # Check if the blocked area is in the list of searched rooms.
                         if blocked_area in self._searched_rooms:
-                            trustBeliefs['destroy obstacles']['competence'] += 0.10
+                            task_repetitions['clear']['positive'] += 1
+                            self._updateTrust(trustBeliefs, "remove_obstacle_together_near", task_repetitions['clear']['positive'])
 
                 if 'found stones' in current_msg and 'close' in current_msg and ('remove alone' in next_msg or 'continue' in next_msg):
-                    trustBeliefs['destroy obstacles']['willingness'] -= 0.1
+                    task_repetitions['clear']['negative'] += 1
+                    self._updateTrust(trustBeliefs, "ignore", task_repetitions['clear']['negative'])
+
 
                 if 'to help you remove an obstacle' in current_msg and 'removing tree' in next_msg:
-                    trustBeliefs['destroy obstacles']['willingness'] += 0.1
-                    trustBeliefs['destroy obstacles']['competence'] += 0.1
+                    task_repetitions['clear']['positive'] += 1
+                    self._updateTrust(trustBeliefs, "request_help_obstacle", task_repetitions['clear']['positive'])
                 
                 if 'collect' in current_msg:
-                    trustBeliefs['rescue']['willingness'] += 0.1
+                    task_repetitions['rescue']['positive'] += 1
+                    self._updateTrust(trustBeliefs, "carry_victim_intent", task_repetitions['rescue']['positive'])
                     for victim in victim_types:
                         if victim in current_msg and victim in self._collected_victims:
-                            trustBeliefs['rescue']['competence'] += 0.2
+                            task_repetitions['rescue']['positive'] += 1
+                            self._updateTrust(trustBeliefs, "carry_victim_alone", task_repetitions['rescue']['positive'])
                 
                 if 'i searched the whole area without finding' in current_msg:
-                    trustBeliefs['search']['competence'] -= 0.5
+                    task_repetitions['search']['negative'] += 1
+                    self._updateTrust(trustBeliefs, "lie_searching", task_repetitions['search']['negative'])
                 
                 if 'waited' in current_msg and "didn't show up" in current_msg:
                     seconds_match = re.search(r'(\d+)\s*seconds', current_msg)
@@ -1078,20 +1084,23 @@ class BaselineAgent(ArtificialBrain):
                         seconds = min(seconds, 30)
                         # For 30 seconds, impact is -0.3; scale linearly (e.g. 20 seconds gives -0.2).
                         impact = -(seconds / 30) * 0.3
-                        if 'search rooms' in current_msg:
-                            trustBeliefs['search']['competence'] += impact
-                        elif 'destroy obstacles' in current_msg:
-                            trustBeliefs['destroy obstacles']['willingness'] += impact
+                        if 'destroy obstacles' in current_msg:
+                            task_repetitions['clear']['negative'] += 1
+                            self._updateTrust(trustBeliefs, "ignore", task_repetitions['clear']['negative'])
                         elif 'rescue' in current_msg:
-                            trustBeliefs['rescue']['willingness'] += impact
+                            task_repetitions['rescue']['negative'] += 1
+                            self._updateTrust(trustBeliefs, "abandom_victim_transport", task_repetitions['rescue']['negative'])
                 
                 if 'human said he searched room' in current_msg:
                     if 'critically injured' in current_msg:
-                        trustBeliefs['search']['competence'] -= 0.4
+                        task_repetitions['rescue']['negative'] += 1
+                        self._updateTrust(trustBeliefs, "lie_victim_found", task_repetitions['rescue']['negative'])
                     elif 'mildly injured' in current_msg:
-                        trustBeliefs['search']['competence'] -= 0.3
+                        task_repetitions['rescue']['negative'] += 1
+                        self._updateTrust(trustBeliefs, "lie_victim_found", task_repetitions['rescue']['negative'])
                     elif 'obstacle' in current_msg:
-                        trustBeliefs['search']['competence'] -= 0.3
+                        task_repetitions['clear']['negative'] += 1
+                        self._updateTrust(trustBeliefs, "lie_searching", task_repetitions['clear']['negative'])
 
         # Save current trust belief values so we can later use and retrieve them to add to a json file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.json', 'w') as file:
@@ -1107,6 +1116,7 @@ class BaselineAgent(ArtificialBrain):
         deltaCompetence = 0.0
         deltaWillingness = 0.0
         task = None
+        print(rep)
 
         if action in self.COMPETENCE_MODEL:
             params = self.COMPETENCE_MODEL[action]
