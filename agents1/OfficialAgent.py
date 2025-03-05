@@ -38,6 +38,13 @@ class Phase(enum.Enum):
     ENTER_ROOM = 19
 
 
+MILD_SAVED = 0.1
+SEVERE_SAVED = 0.2
+SAVED_ALONE_MULTIPLIER = 2
+MAX_REWARDED_ARRIVAL_TIME = 15 # After this no reward is given but the robot can still wait
+ARRIVAL_TIME_LIMIT = 30 # After this time the robot goes on to do something else -> thinks human lied
+ARRIVAL_REWARD = 0.2
+
 class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
@@ -73,6 +80,16 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
+
+        # Custom class attributes
+        self._competency_additions = []
+        self._willingness_additions = []
+        self._possible_attributes = ["willingness_severlyInjured"]
+        self._attribute_defaults = [0.5]
+        self._processed_messages = []
+        self.waiting_for_human = False
+        self.waiting_for_human_start = None
+
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -134,8 +151,17 @@ class BaselineAgent(ArtificialBrain):
                 self._carrying_together = True
             if 'is_human_agent' in info and self._human_name in info['name'] and len(info['is_carrying']) == 0:
                 self._carrying_together = False
+
         # If carrying a victim together, let agent be idle (because joint actions are essentially carried out by the human)
         if self._carrying_together == True:
+            if self.waiting_for_human:
+                wait_time = time.time() - self.waiting_for_human_start
+                reward = ARRIVAL_REWARD * max((MAX_REWARDED_ARRIVAL_TIME - wait_time)/MAX_REWARDED_ARRIVAL_TIME, 0)
+                self._competency_additions.append(("competency_arrival", reward))
+
+                self.waiting_for_human = False
+                self.waiting_for_human_start = None
+
             return None, {}
 
         # Send the hidden score message for displaying and logging the score during the task, DO NOT REMOVE THIS
@@ -394,15 +420,30 @@ class BaselineAgent(ArtificialBrain):
                                 self._answered = True
                             # Tell the human to come over and be idle untill human arrives
                             if not state[{'is_human_agent': True}]:
+                                self.waiting_for_human_start = time.time()
+                                self.waiting_for_human = True
+
                                 self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
                                                   'RescueBot')
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
+                                self.waiting_for_human_start = time.time()
+                                self.waiting_for_human = True
                                 self._send_message('Lets remove rock blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
-                        # Remain idle untill the human communicates what to do with the identified obstacle 
+
+                        if self.waiting_for_human and time.time() - self.waiting_for_human_start > ARRIVAL_TIME_LIMIT:
+                            print("Robot waited for human for too long and gave up :(")
+                            self._competency_additions.append(("competency_arrival", -1 * ARRIVAL_REWARD))
+                            self.waiting_for_human = False
+                            self.waiting_for_human_start = None
+                            self._send_message("", "You did not come to help me destroy a rock!")
+
+                            # TODO: Implement the change in behaviour
+
+                        # Remain idle untill the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
 
@@ -480,6 +521,9 @@ class BaselineAgent(ArtificialBrain):
                                 self._answered = True
                             # Tell the human to come over and be idle untill human arrives
                             if not state[{'is_human_agent': True}]:
+                                self.waiting_for_human_start = time.time()
+                                self.waiting_for_human = True
+
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
@@ -489,6 +533,16 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
                                 return None, {}
+
+                        if self.waiting_for_human and time.time() - self.waiting_for_human_start > ARRIVAL_TIME_LIMIT:
+                            print("Robot waited for human for too long and gave up :(")
+                            self._competency_additions.append(("competency_arrival", -1 * ARRIVAL_REWARD))
+                            self._send_message("", "You did not come to help me destroy a stone!")
+                            self.waiting_for_human = False
+                            self.waiting_for_human_start = None
+
+                            # TODO: Implement the change in behaviour
+
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
@@ -498,6 +552,16 @@ class BaselineAgent(ArtificialBrain):
                     self._remove = False
                     self._waiting = False
                     self._phase = Phase.ENTER_ROOM
+
+                    # The human came and removed the rock in time
+                    if self.waiting_for_human:
+                        wait_time = time.time() - self.waiting_for_human_start
+                        reward = ARRIVAL_REWARD * max(
+                            (MAX_REWARDED_ARRIVAL_TIME - wait_time) / MAX_REWARDED_ARRIVAL_TIME, 0)
+                        self._competency_additions.append(("competency_arrival", reward))
+                        self.waiting_for_human = False
+                        self.waiting_for_human_start = None
+                        self._send_message("", "Thank you for helping me remove an object!")
 
             if Phase.ENTER_ROOM == self._phase:
                 self._answered = False
@@ -640,10 +704,14 @@ class BaselineAgent(ArtificialBrain):
                     self._waiting = False
                     # Tell the human to come over and help carry the critically injured victim
                     if not state[{'is_human_agent': True}]:
+                        self.waiting_for_human = True
+                        self.waiting_for_human_start = time.time()
+
                         self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
                             self._recent_vic) + ' together.', 'RescueBot')
                     # Tell the human to carry the critically injured victim together
                     if state[{'is_human_agent': True}]:
+
                         self._send_message('Lets carry ' + str(
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                             self._recent_vic) + '.', 'RescueBot')
@@ -658,6 +726,9 @@ class BaselineAgent(ArtificialBrain):
                     self._waiting = False
                     # Tell the human to come over and help carry the mildly injured victim
                     if not state[{'is_human_agent': True}]:
+                        self.waiting_for_human = True
+                        self.waiting_for_human_start = time.time()
+
                         self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
                             self._recent_vic) + ' together.', 'RescueBot')
                     # Tell the human to carry the mildly injured victim together
@@ -730,6 +801,14 @@ class BaselineAgent(ArtificialBrain):
                 objects = []
                 # When the victim has to be carried by human and agent together, check whether human has arrived at the victim's location
                 for info in state.values():
+
+                    if self.waiting_for_human and time.time() - self.waiting_for_human_start > ARRIVAL_TIME_LIMIT:
+                        print("Robot waited for human for too long and gave up :(")
+                        self._competency_additions.append(("competency_arrival", -1 * ARRIVAL_REWARD))
+                        self.waiting_for_human = False
+                        self.waiting_for_human_start = None
+                        self._send_message("", "You did not come to help me rescue a victim like you've promised!")
+
                     # When the victim has to be carried by human and agent together, check whether human has arrived at the victim's location
                     if 'class_inheritance' in info and 'CollectableBlock' in info['class_inheritance'] and 'critical' in \
                             info['obj_id'] and info['location'] in self._roomtiles or \
@@ -796,6 +875,12 @@ class BaselineAgent(ArtificialBrain):
                 self._tick = state['World']['nr_ticks']
                 self._carrying = False
                 # Drop the victim on the correct location on the drop zone
+
+                if 'mild' in self._goal_vic and self._rescue != 'alone':
+                    self._competency_additions.append(("competency_rescue_mildlyInjured", MILD_SAVED))
+                elif 'severe' in self._goal_vic:
+                    self._competency_additions.append(("competency_rescue_severelyInjured", SEVERE_SAVED))
+
                 return Drop.__name__, {'human_name': self._human_name}
 
     def _get_drop_zones(self, state):
@@ -874,6 +959,8 @@ class BaselineAgent(ArtificialBrain):
                         self._found_victim_logs[collectVic] = {'room': loc}
                     # Add the victim to the memory of rescued victims when the human's condition is not weak
                     if condition != 'weak' and collectVic not in self._collected_victims:
+                        [] # TODO:
+                        self._competency_additions.append(("competency_rescue_mildlyInjured", MILD_SAVED * SAVED_ALONE_MULTIPLIER))
                         self._collected_victims.append(collectVic)
                     # Decide to help the human carry the victim together when the human's condition is weak
                     if condition == 'weak':
@@ -932,14 +1019,17 @@ class BaselineAgent(ArtificialBrain):
                 # Retrieve trust values 
                 if row and row[0] == self._human_name:
                     name = row[0]
-                    competence = float(row[1])
-                    willingness = float(row[2])
-                    trustBeliefs[name] = {'competence': competence, 'willingness': willingness}
+                    trustBeliefs[name] = {
+                        attribute: row[i]
+                        for i, attribute in enumerate(self._possible_attributes)
+                    }
                 # Initialize default trust values
                 if row and row[0] != self._human_name:
-                    competence = default
-                    willingness = default
-                    trustBeliefs[self._human_name] = {'competence': competence, 'willingness': willingness}
+                    trustBeliefs[self._human_name] = {
+                        attribute: default
+                        for attribute, default in zip(self._possible_attributes, self._attribute_defaults)
+                    }
+
         return trustBeliefs
 
     def _trustBelief(self, members, trustBeliefs, folder, receivedMessages):
@@ -947,19 +1037,19 @@ class BaselineAgent(ArtificialBrain):
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
         # Update the trust value based on for example the received messages
+
+        for addition in self._competency_additions + self._willingness_additions:
+            attribute, update_value = addition
+            trustBeliefs[self._human_name][attribute] += update_value
+
         for message in receivedMessages:
-            # Increase agent trust in a team member that rescued a victim
-            if 'Collect' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
-                # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
-                                                                       1)
-        # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
+            if 'Collect' in message and message not in self._processed_messages:
+                self._processed_messages.append(message)
+
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence', 'willingness'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['competence'],
-                                 trustBeliefs[self._human_name]['willingness']])
+            csv_writer.writerow(['name'] + self._possible_attributes)
+            csv_writer.writerow([self._human_name] + [trustBeliefs[self._human_name][attribute] for attribute in self._possible_attributes])
 
         return trustBeliefs
 
