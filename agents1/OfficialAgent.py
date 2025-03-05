@@ -44,11 +44,13 @@ class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
         # Initialization of some relevant variables
+        self._rescue_together_chosen_critically = None
+        self._waiting_for_human_to_rescue_together_critically = None
         self._waiting_start_tick = None # Timer
-        self._waiting_for_human_to_remove_together = False  # Tracks if we are waiting for human to arrive
-        self._waiting_for_human_to_rescue_together = False
+        self._waiting_for_human_to_rescue_together_mildly = False
+        self._rescue_together_chosen_mildly = False  # Tracks if human selected "Rescue together"
         self._remove_together_chosen = False  # Tracks if human selected "Remove together"
-        self._rescue_together_chosen = False  # Tracks if human selected "Rescue together"
+        self._waiting_for_human_to_remove_together = False  # Tracks if we are waiting for human to arrive
         self._trust_check_passed_for_removal = None  
         self._trust_check_passed_for_rescue = None 
         self._tick = None
@@ -574,7 +576,6 @@ class BaselineAgent(ArtificialBrain):
                             if not self._remove_together_chosen:
                                 self._trust_check_passed_for_removal = self._passesCheckForRemoval() 
                                 self._remove_together_chosen = True  # Mark that the choice has been made
-                                self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
                                 self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name,self._send_message, 1)
 
 
@@ -583,6 +584,7 @@ class BaselineAgent(ArtificialBrain):
                                 if not self._waiting_for_human_to_remove_together:
                                     self._send_message(f'I trust you! Please come to {self._door["room_name"]} to remove stones together. I will wait for you for 17 seconds. Please hurry!', 'RescueBot')
                                     self._waiting_for_human_to_remove_together = True  # Start waiting
+                                    self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
 
                                 # Keep checking if the human has arrived withing 150 ticks(15 seconds)
                                 current_tick = state['World']['nr_ticks']
@@ -764,8 +766,8 @@ class BaselineAgent(ArtificialBrain):
                     self._send_message(self._goal_vic + ' not present in ' + str(self._door[
                                                                                     'room_name']) + ' because I searched the whole area without finding ' + self._goal_vic + '.',
                                       'RescueBot')
-                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, 1)
-                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
                     # Remove the victim location from memory
                     self._found_victim_logs.pop(self._goal_vic, None)
                     self._found_victims.remove(self._goal_vic)
@@ -778,24 +780,28 @@ class BaselineAgent(ArtificialBrain):
                     self._searched_rooms.append(self._door['room_name'])
                 # Make a plan to rescue a found critically injured victim if the human decides so
                 if (self.received_messages_content and self.received_messages_content[
-                    -1] == 'Rescue' and 'critical' in self._recent_vic) or self._rescue_together_chosen or self._waiting_for_human_to_rescue_together:
+                    -1] == 'Rescue' and 'critical' in self._recent_vic) or self._rescue_together_chosen_critically or self._waiting_for_human_to_rescue_together_critically:
 
-                    if not self._rescue_together_chosen:
+                    if not self._rescue_together_chosen_critically:
                         self._rescue = 'together'
                         self._answered = True
                         self._waiting = False
+                        self._rescue_together_chosen_critically = True
                         if self._distance_human == 'far':
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
                         else:
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
 
-                    if not self._waiting_for_human_to_rescue_together:
+                    if not self._waiting_for_human_to_rescue_together_critically:
                         # Tell the human to come over and help carry the critically injured victim
-                        if not state[{'is_human_agent': True}]:
-                            self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
-                                self._recent_vic) + ' together.', 'RescueBot') # Tell only once
-                            self._waiting_for_human_to_rescue_together = True  # Start waiting
-                            return None, {}
+                        self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
+                            self._recent_vic) + ' together. I will wait for you for 20 seconds. Please hurry!', 'RescueBot') # Tell only once
+                        self._waiting_for_human_to_rescue_together_critically = True  # Start waiting
+                        self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
+                        return None, {}
+
+                    # Keep checking if the human has arrived within 200 ticks (20 seconds)
+                    current_tick = state['World']['nr_ticks']
                     
                     # Tell the human to carry the critically injured victim together
                     if state[{'is_human_agent': True}]:
@@ -803,21 +809,33 @@ class BaselineAgent(ArtificialBrain):
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                             self._recent_vic) + '.', 'RescueBot')
 
-                        self._waiting_for_human_to_rescue_together = False
-                        self._rescue_together_chosen = False
+                        self._waiting_for_human_to_rescue_together_critically = False
+                        self._rescue_together_chosen_critically = False
+                        self._waiting_start_tick = None  # ✅ Reset timer
                         self._goal_vic = self._recent_vic
                         self._recent_vic = None
                         self._phase = Phase.PLAN_PATH_TO_VICTIM
                         return None, {}
+
+                    if current_tick - self._waiting_start_tick >= 200:
+                        self._send_message('I’ve waited too long! I will move on to something else.', 'RescueBot')
+                        self._rescue = None
+                        self._waiting_for_human_to_rescue_together_critically = False
+                        self._rescue_together_chosen_critically = False
+                        self._waiting_start_tick = None  # ✅ Reset timer
+                        self._waiting = False
+                        self._todo.append(self._recent_vic)
+                        self._recent_vic = None
+                        self._phase = Phase.FIND_NEXT_GOAL
+                        return None, {}
                 # Make a plan to rescue a found mildly injured victim together if the human decides so
                 if (self.received_messages_content and self.received_messages_content[
-                    -1] == 'Rescue together' and 'mild' in self._recent_vic) or self._rescue_together_chosen or self._waiting_for_human_to_rescue_together:
+                    -1] == 'Rescue together' and 'mild' in self._recent_vic) or self._rescue_together_chosen_mildly or self._waiting_for_human_to_rescue_together_mildly:
 
-                    if not self._rescue_together_chosen:
+                    if not self._rescue_together_chosen_mildly:
                         self._trust_check_passed_for_rescue = self._passesCheckForRescue()
-                        self._rescue_together_chosen = True  # Store decision
+                        self._rescue_together_chosen_mildly = True  # Store decision
                         self._answered = True
-                        self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
                         # Trigger trust change based on distance
                         if self._distance_human == 'far':
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
@@ -830,9 +848,10 @@ class BaselineAgent(ArtificialBrain):
                         self._waiting = False
 
                         # Ask the human to come only once
-                        if not self._waiting_for_human_to_rescue_together:
+                        if not self._waiting_for_human_to_rescue_together_mildly:
                             self._send_message(f'I trust you! Please come to {self._door["room_name"]} to carry {self._recent_vic} together. I will wait for you for 15 seconds. Please hurry!', 'RescueBot')
-                            self._waiting_for_human_to_rescue_together = True  # Start waiting
+                            self._waiting_for_human_to_rescue_together_mildly = True  # Start waiting
+                            self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
                             return None, {}  # Wait for the human to arrive
                         
                         # Keep checking if the human has arrived within 170 ticks (17 seconds)
@@ -847,8 +866,8 @@ class BaselineAgent(ArtificialBrain):
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name,self._send_message, 1)
 
                             # Reset flags and proceed to rescue planning
-                            self._waiting_for_human_to_rescue_together = False
-                            self._rescue_together_chosen = False
+                            self._waiting_for_human_to_rescue_together_mildly = False
+                            self._rescue_together_chosen_mildly = False
                             self._trust_check_passed_for_rescue = None
                             self._waiting_start_tick = None  # ✅ Reset timer
                             self._goal_vic = self._recent_vic
@@ -856,15 +875,15 @@ class BaselineAgent(ArtificialBrain):
                             self._phase = Phase.PLAN_PATH_TO_VICTIM
                             return None, {}
                         
-                        # If 170 ticks have passed and the human has NOT arrived → Rescue alone
-                        if current_tick - self._waiting_start_tick >= 170:
+                        # If 150 ticks have passed and the human has NOT arrived → Rescue alone
+                        if current_tick - self._waiting_start_tick >= 150:
                             self._send_message(f'I’ve waited too long! I will rescue {self._recent_vic} alone.', 'RescueBot')
                             self._send_message(f'Picking up {self._recent_vic} in {self._door["room_name"]}.', 'RescueBot')
         
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, -1)
                             # ✅ Reset flags and proceed with solo rescue
-                            self._waiting_for_human_to_rescue_together = False
-                            self._rescue_together_chosen = False
+                            self._waiting_for_human_to_rescue_together_mildly = False
+                            self._rescue_together_chosen_mildly = False
                             self._trust_check_passed_for_rescue = None
                             self._waiting_start_tick = None  # ✅ Reset timer
                             self._rescue = 'alone'
@@ -872,7 +891,7 @@ class BaselineAgent(ArtificialBrain):
                             self._goal_loc = self._remaining[self._goal_vic]
                             self._recent_vic = None
                             self._phase = Phase.PLAN_PATH_TO_VICTIM
-                            return None, {}  # ✅ Continue execution
+                            return None, {}  # Continue execution
                     else:  
                         self._send_message("Sorry, I don't trust you! I decided to rescue alone!", 'RescueBot')
                         self._send_message('Picking up ' + self._recent_vic + ' in ' + self._door['room_name'] + '.',
@@ -883,7 +902,8 @@ class BaselineAgent(ArtificialBrain):
                         self._goal_vic = self._recent_vic
                         self._goal_loc = self._remaining[self._goal_vic]
                         self._recent_vic = None
-                        self._rescue_together_chosen = False
+                        self._rescue_together_chosen_mildly = False
+                        self._waiting_for_human_to_rescue_together_mildly = False
                         self._trust_check_passed_for_rescue = None
                         self._phase = Phase.PLAN_PATH_TO_VICTIM
                         return None, {}
