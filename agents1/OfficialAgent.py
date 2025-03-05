@@ -44,10 +44,13 @@ class BaselineAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
         super().__init__(slowdown, condition, name, folder)
         # Initialization of some relevant variables
+        self._waiting_start_tick = None # Timer
         self._waiting_for_human_to_remove_together = False  # Tracks if we are waiting for human to arrive
+        self._waiting_for_human_to_rescue_together = False
         self._remove_together_chosen = False  # Tracks if human selected "Remove together"
-        self._competence_passed_for_removal = None  # Tracks result of competence check
-
+        self._rescue_together_chosen = False  # Tracks if human selected "Rescue together"
+        self._trust_check_passed_for_removal = None  
+        self._trust_check_passed_for_rescue = None 
         self._tick = None
         self._slowdown = slowdown
         self._condition = condition
@@ -422,21 +425,22 @@ class BaselineAgent(ArtificialBrain):
                                 self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1, 0.1)
                         # Wait for the human to help removing the obstacle and remove the obstacle together
                         if (self.received_messages_content and self.received_messages_content[
-                            -1] == 'Remove') or self._remove_together_chosen:
+                            -1] == 'Remove') or self._remove_together_chosen or self._waiting_for_human_to_remove_together:
+
                             if not self._remove_together_chosen:
                                 self._remove_together_chosen = True  # Mark that "Remove together" was chosen
                                 self._answered = True
-
-                            # Tell the human to come over and be idle untill human arrives
-                            if not state[{'is_human_agent': True}]:
-                                self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
-                                                  'RescueBot')
-                                self._waiting_for_human_to_remove_together = True  # Start waiting
-                                
                                 if self._distance_human=='close':
                                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
                                 else:
                                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+
+                            # Tell the human to come over and be idle until human arrives
+                            if not state[{'is_human_agent': True}]:
+                                if not self._waiting_for_human_to_remove_together:
+                                    self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
+                                                    'RescueBot') # Message the human only once
+                                    self._waiting_for_human_to_remove_together = True 
                                 return None, {}
                             
                             # Tell the human to remove the obstacle when he/she arrives
@@ -466,16 +470,17 @@ class BaselineAgent(ArtificialBrain):
                         # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
-                            # Perform competence and willingness check for removal
-                            competence_pass = self._passesCompetenceCheckForRemoval()
+                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
 
-                            if competence_pass:
+                            # Perform competence and willingness check for removal
+                            trust_check_passed_for_removal = self._passesCheckForRemoval()
+
+                            if trust_check_passed_for_removal:
                                 self._answered = True
                                 self._waiting = False
                                 # Add area to the to-do list
                                 self._to_search.append(self._door['room_name'])
                                 self._phase = Phase.FIND_NEXT_GOAL
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name, self._send_message, -1)
                             else:  
                                 # ❌ Human is not trusted → Force removal
                                 self._send_message("Sorry, I don't trust you! I decided to remove the tree anyway!", 'RescueBot')
@@ -493,15 +498,12 @@ class BaselineAgent(ArtificialBrain):
                         # Remove the obstacle if the human tells the agent to do so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove' or self._remove:
-                            if not self._remove:
-                                self._answered = True
-                                self._waiting = False
-                                self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
-                                                  'RescueBot')
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
-                            if self._remove:
-                                self._send_message('Removing tree blocking ' + str(
-                                    self._door['room_name']) + ' because you asked me to.', 'RescueBot')
+                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
+
+                            self._answered = True
+                            self._waiting = False
+                            self._send_message('Removing tree blocking ' + str(self._door['room_name']) + '.',
+                                            'RescueBot')
                             self._phase = Phase.ENTER_ROOM
                             self._remove = False
                             return RemoveObject.__name__, {'object_id': info['obj_id']}
@@ -525,16 +527,19 @@ class BaselineAgent(ArtificialBrain):
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             
-                            # Perform competence and willingness check for removal
-                            competence_pass = self._passesCompetenceCheckForRemoval()
+                            self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
 
-                            if competence_pass:
+                            # Perform competence and willingness check for removal
+                            trust_check_passed_for_removal = self._passesCheckForRemoval()
+
+                            if trust_check_passed_for_removal:
                                 self._answered = True
                                 self._waiting = False
                                 # Add area to the to do list
                                 self._to_search.append(self._door['room_name'])
                                 self._phase = Phase.FIND_NEXT_GOAL
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                                trust_check_passed_for_removal = None
+                                return None, {}
                             else:  
                                 # ❌ Human is not trusted → Force removal
                                 self._send_message("Sorry, I don't trust you! I decided to remove the stones anyway!", 'RescueBot')
@@ -567,24 +572,42 @@ class BaselineAgent(ArtificialBrain):
                             -1] == 'Remove together') or self._remove or self._remove_together_chosen:
 
                             if not self._remove_together_chosen:
-                                self._competence_passed_for_removal = self._passesCompetenceCheckForRemoval()  # Perform competence check
+                                self._trust_check_passed_for_removal = self._passesCheckForRemoval() 
                                 self._remove_together_chosen = True  # Mark that the choice has been made
+                                self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
 
-                            if self._competence_passed_for_removal:
+
+                            if self._trust_check_passed_for_removal:
                                 # Send message *only once* to ask the human to come
                                 if not self._waiting_for_human_to_remove_together:
-                                    self._send_message(f'Please come to {self._door["room_name"]} to remove stones together.', 'RescueBot')
+                                    self._send_message(f'I trust you! Please come to {self._door["room_name"]} to remove stones together. I will wait for you for 17seconds. Better hurry!', 'RescueBot')
                                     self._waiting_for_human_to_remove_together = True  # Start waiting
 
-                                # Keep checking if the human has arrived
+                                # Keep checking if the human has arrived withing 150 ticks(15 seconds)
+                                current_tick = state['World']['nr_ticks']
                                 if state[{'is_human_agent': True}]:  # Human arrived!
-                                    self._send_message(f'Let’s remove the obstacle in {self._door["room_name"]}!', 'RescueBot')
+                                    self._send_message(f'You arrived in time! Let’s remove the obstacle in {self._door["room_name"]}!', 'RescueBot')
 
                                     # Reset flags and perform removal together
                                     self._waiting_for_human_to_remove_together = False
                                     self._remove_together_chosen = False
-                                    self._competence_passed_for_removal = None
-                                    
+                                    self._trust_check_passed_for_removal = None
+                                    self._waiting_start_tick = None  # Reset timer
+                                    return None, {}
+
+                                # If 150 ticks have passed and the human has NOT arrived → Remove alone
+                                if current_tick - self._waiting_start_tick >= 150:
+                                    self._send_message(f'I’ve waited too long! I will remove the stones alone.', 'RescueBot')
+                                    self._send_message(f'Removing stones blocking {self._door["room_name"]}.', 'RescueBot')
+
+                                    # Reset flags and proceed with solo removal
+                                    self._waiting_for_human_to_remove_together = False
+                                    self._remove_together_chosen = False
+                                    self._trust_check_passed_for_removal = None
+                                    self._waiting_start_tick = None  # ✅ Reset timer
+                                    self._phase = Phase.ENTER_ROOM
+
+                                    return RemoveObject.__name__, {'object_id': info['obj_id']}
                                 return None, {}       
                             else:
                                 # ❌ Human is not trusted → Force removal
@@ -595,7 +618,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._waiting = False
                                 self._remove = True  
                                 self._remove_together_chosen = False
-                                self._competence_passed_for_removal = None
+                                self._trust_check_passed_for_removal = None
                                 self._phase = Phase.ENTER_ROOM
 
                                 action = RemoveObject.__name__, {'object_id': info['obj_id']}
@@ -749,54 +772,75 @@ class BaselineAgent(ArtificialBrain):
                 if self._door['room_name'] not in self._searched_rooms:
                     self._searched_rooms.append(self._door['room_name'])
                 # Make a plan to rescue a found critically injured victim if the human decides so
-                if self.received_messages_content and self.received_messages_content[
-                    -1] == 'Rescue' and 'critical' in self._recent_vic:
-                    self._rescue = 'together'
-                    self._answered = True
-                    self._waiting = False
-                    # Tell the human to come over and help carry the critically injured victim
-                    if not state[{'is_human_agent': True}]:
-                        self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
-                            self._recent_vic) + ' together.', 'RescueBot')
-                    # Tell the human to carry the critically injured victim together
-                    if state[{'is_human_agent': True}]:
-                        self._send_message('Lets carry ' + str(
-                            self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
-                            self._recent_vic) + '.', 'RescueBot')
+                if (self.received_messages_content and self.received_messages_content[
+                    -1] == 'Rescue' and 'critical' in self._recent_vic) or self._rescue_together_chosen or self._waiting_for_human_to_rescue_together:
+
+                    if not self._rescue_together_chosen:
+                        self._rescue = 'together'
+                        self._answered = True
+                        self._waiting = False
                         if self._distance_human == 'far':
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
                         else:
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
-                    self._goal_vic = self._recent_vic
-                    self._recent_vic = None
-                    self._phase = Phase.PLAN_PATH_TO_VICTIM
-                # Make a plan to rescue a found mildly injured victim together if the human decides so
-                if self.received_messages_content and self.received_messages_content[
-                    -1] == 'Rescue together' and 'mild' in self._recent_vic:
-                    # Perform competence and willingness check
-                    competence_pass = self._passesCompetenceCheckForRescue()
 
-                    if competence_pass:
-                        self._rescue = 'together'
-                        self._answered = True
-                        self._waiting = False
-                        # Tell the human to come over and help carry the mildly injured victim
+                    if not self._waiting_for_human_to_rescue_together:
+                        # Tell the human to come over and help carry the critically injured victim
                         if not state[{'is_human_agent': True}]:
                             self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
-                                self._recent_vic) + ' together.', 'RescueBot')
-                        # Tell the human to carry the mildly injured victim together
-                        if state[{'is_human_agent': True}]:
-                            self._send_message('Lets carry ' + str(
-                                self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
-                                self._recent_vic) + '.', 'RescueBot')
-                            if self._distance_human == 'far':
-                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
-                            else:
-                                self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
+                                self._recent_vic) + ' together.', 'RescueBot') # Tell only once
+                            self._waiting_for_human_to_rescue_together = True  # Start waiting
+                            return None, {}
+                    
+                    # Tell the human to carry the critically injured victim together
+                    if state[{'is_human_agent': True}]:
+                        self._send_message('Good to see you! Lets carry ' + str(
+                            self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
+                            self._recent_vic) + '.', 'RescueBot')
 
+                        self._waiting_for_human_to_rescue_together = False
+                        self._rescue_together_chosen = False
                         self._goal_vic = self._recent_vic
                         self._recent_vic = None
                         self._phase = Phase.PLAN_PATH_TO_VICTIM
+                        return None, {}
+                # Make a plan to rescue a found mildly injured victim together if the human decides so
+                if (self.received_messages_content and self.received_messages_content[
+                    -1] == 'Rescue together' and 'mild' in self._recent_vic) or self._rescue_together_chosen or self._waiting_for_human_to_rescue_together:
+
+                    if not self._rescue_together_chosen:
+                        self._trust_check_passed_for_rescue = self._passesCheckForRescue()
+                        self._rescue_together_chosen = True  # Store decision
+                        self._answered = True
+                        if self._distance_human == 'far':
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+                        else:
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
+                        return None, {}
+
+                    if self._trust_check_passed_for_rescue:
+                        self._rescue = 'together'
+                        self._waiting = False
+
+                        # Ask the human to come only once
+                        if not self._waiting_for_human_to_rescue_together:
+                            self._send_message(f'Please come to {self._door["room_name"]} to carry {self._recent_vic} together.', 'RescueBot')
+                            self._waiting_for_human_to_rescue_together = True  # Start waiting
+                            return None, {}  # Wait for the human to arrive
+
+                        # Tell the human to carry the mildly injured victim together
+                        if state[{'is_human_agent': True}]:
+                            self._send_message('Good to see you! Lets carry ' + str(
+                                self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
+                                self._recent_vic) + '.', 'RescueBot')
+
+                            # Reset flags and proceed to rescue planning
+                            self._waiting_for_human_to_rescue_together = False
+                            self._rescue_together_chosen = False
+                            self._trust_check_passed_for_rescue = None
+                            self._goal_vic = self._recent_vic
+                            self._recent_vic = None
+                            self._phase = Phase.PLAN_PATH_TO_VICTIM
                     else:  
                         self._send_message("Sorry, I don't trust you! I decided to rescue alone!", 'RescueBot')
                         self._send_message('Picking up ' + self._recent_vic + ' in ' + self._door['room_name'] + '.',
@@ -807,7 +851,10 @@ class BaselineAgent(ArtificialBrain):
                         self._goal_vic = self._recent_vic
                         self._goal_loc = self._remaining[self._goal_vic]
                         self._recent_vic = None
+                        self._rescue_together_chosen = False
+                        self._trust_check_passed_for_rescue = None
                         self._phase = Phase.PLAN_PATH_TO_VICTIM
+                        return None, {}
                 # Make a plan to rescue the mildly injured victim alone if the human decides so, and communicate this to the human
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue alone' and 'mild' in self._recent_vic:
@@ -1245,3 +1292,44 @@ class BaselineAgent(ArtificialBrain):
         willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_WILLINGNESS, 0.0)
 
         return random.random() < self.normalize(willingness_value)
+
+    def _passesCheckForRescue(self):
+        """
+        Determines if the human passes the overall rescue check based on the 
+        average of competence and willingness trust beliefs.
+        The probability of passing is determined by the combined trust score.
+        """
+        if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
+            return False  # Safety check to ensure trust service and human name are available
+
+        # Get competence and willingness trust values
+        competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_COMPETENCE, 0.0)
+        willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.RESCUE_WILLINGNESS, 0.0)
+
+        # Compute the average trust score
+        avg_trust_score = (competence_value + willingness_value) / 2.0
+
+        # Perform probability check
+        return random.random() < self.normalize(avg_trust_score)
+
+    def _passesCheckForRemoval(self):
+        """
+        Determines if the human passes the overall removal check based on the 
+        average of competence and willingness trust beliefs.
+        The probability of passing is determined by the combined trust score.
+        """
+        if not hasattr(self, "trustService") or not hasattr(self, "_human_name"):
+            return False  # Safety check to ensure trust service and human name are available
+
+        # Get competence and willingness trust values
+        competence_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_COMPETENCE, 0.0)
+        willingness_value = self.trustService.trust_scores.get(self._human_name, {}).get(TrustBeliefs.REMOVE_WILLINGNESS, 0.0)
+
+        # Compute the average trust score
+        avg_trust_score = (competence_value + willingness_value) / 2.0
+
+        # Perform probability check
+        return random.random() < self.normalize(avg_trust_score)
+
+
+    
