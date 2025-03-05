@@ -388,8 +388,27 @@ class BaselineAgent(ArtificialBrain):
                     self._phase = Phase.REMOVE_OBSTACLE_IF_NEEDED
 
             if Phase.REMOVE_OBSTACLE_IF_NEEDED == self._phase:
+                self._answered = False
                 objects = []
                 agent_location = state[self.agent_id]['location']
+                obstacle_found = False
+
+                for info in state.values():
+                    if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance']:
+                        obstacle_found = True
+                        break
+
+                if not obstacle_found and self._remove and not self._waiting:
+                    self._send_message(
+                        'No obstacles found in ' + str(self._door[
+                                                           'room_name']) + ' despite your request for help.',
+                        'RescueBot')
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, -1)
+                    self._remove = False
+                    self._waiting = False
+                    self._phase = Phase.ENTER_ROOM
+
                 # Identify which obstacle is blocking the entrance
                 for info in state.values():
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info[
