@@ -7,6 +7,7 @@ from SaR_gui import visualization_server
 from worlds1.WorldBuilder import create_builder
 from pathlib import Path
 from loggers.OutputLogger import output_logger
+from agents1.eventUtils import PromptSession, Scenario
 
 if __name__ == "__main__":
     fld = os.getcwd()
@@ -23,6 +24,15 @@ if __name__ == "__main__":
             builder = create_builder(task_type=choice1, condition=choice3, name=choice2, folder=fld)
         else:
             print("\nWrong condition name entered")
+
+        print("Are we using a baseline scenario? Choose between 'never', 'always', 'random'. Otherwise, press 'Enter' ")
+        choice4=input()
+        if choice4=='never':
+            PromptSession.scenario_used = Scenario.NEVER_TRUST
+        elif choice4=='always':
+            PromptSession.scenario_used = Scenario.ALWAYS_TRUST
+        elif choice4=='random':
+            PromptSession.scenario_used = Scenario.RANDOM_TRUST
 
     # Start overarching MATRX scripts and threads, such as the api and/or visualizer if requested. Here we also link our own media resource folder with MATRX.
     media_folder = pathlib.Path().resolve()
