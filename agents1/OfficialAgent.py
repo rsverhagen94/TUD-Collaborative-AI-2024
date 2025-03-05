@@ -427,8 +427,10 @@ class BaselineAgent(ArtificialBrain):
                                                   'RescueBot')
                                 if self._distance_human=='close':
                                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name, self._send_message, 1, 0.1)
                                 else:
                                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name, self._send_message, 1, 0.1)
                                 return None, {}
                             
                             # Tell the human to remove the obstacle when he/she arrives
@@ -538,8 +540,10 @@ class BaselineAgent(ArtificialBrain):
                                     'RescueBot')
                                 if self._distance_human == 'far':
                                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name, self._send_message, 1, 0.1)
                                 else:
                                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1, 0.1)
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name, self._send_message, 1, 0.1)
                                 return None, {}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:

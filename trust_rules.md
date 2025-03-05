@@ -3,11 +3,11 @@ The trust will be lowered in the following phases/situations:
         - when the agent has to re-search all the rooms, all the values are lowered
     - REMOVE_OBSTACLE_IF_NEEDED:
         - when the human refuses to help the agent remove a ROCK, remove willingness is lowered based on the human's distance to the robot
-        - when the human wants to help the agent remove a ROCK, the rescue willingness is increased based on the human's distance to the robot
+        - when the human wants to help the agent remove a ROCK, the remove willingness is increased based on the human's distance to the robot + the remove competence is increased
         - when the human refuses to help the agent remove a TREE, the remove willingness is lowered
         - when the human wants to help the agent remove a TREE, the remove willingness is increased
         - when the human refuses to help the agent remove a STONE, the remove willingness is lowered based on the human's distance to the robot
-        - when the human wants to help the agent remove a STONE, the remove willingness is increased based on the human's distance to the robot
+        - when the human wants to help the agent remove a STONE, the remove willingness is increased based on the human's distance to the robot + the remove competence is increased
     - FOLLOW_ROOM_SEARCH_PATH
         - if human tells agent a victim is in a room and the victim was actually there, the rescue willingness and search competence + willingness go up
         - for critically injured victims:
