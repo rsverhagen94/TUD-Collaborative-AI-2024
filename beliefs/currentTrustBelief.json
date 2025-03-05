@@ -1,14 +1,14 @@
 {
     "search": {
-        "competence": 0,
-        "willingness": 0
+        "competence": -0.5,
+        "willingness": -0.4484772733023241
     },
     "clear": {
-        "competence": 0,
-        "willingness": 0
+        "competence": -0.5,
+        "willingness": -0.5503009018027032
     },
     "rescue": {
-        "competence": 0,
-        "willingness": 0
+        "competence": -0.5,
+        "willingness": -0.5580917121364142
     }
 }

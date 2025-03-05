@@ -1,16 +1,58 @@
 {
-    "useless": {
+    "hclw": {
         "search": {
-            "competence": 0,
-            "willingness": 0
+            "competence": 0.5,
+            "willingness": -0.5
         },
         "clear": {
-            "competence": 0,
-            "willingness": 0
+            "competence": 0.5,
+            "willingness": -0.5
         },
         "rescue": {
-            "competence": 0,
-            "willingness": 0
+            "competence": 0.5,
+            "willingness": -0.5
+        }
+    },
+    "hchw": {
+        "search": {
+            "competence": 0.5,
+            "willingness": 0.5
+        },
+        "clear": {
+            "competence": 0.5,
+            "willingness": 0.5
+        },
+        "rescue": {
+            "competence": 0.5,
+            "willingness": 0.5
+        }
+    },
+    "lclw": {
+        "search": {
+            "competence": -0.5,
+            "willingness": -0.5
+        },
+        "clear": {
+            "competence": -0.5,
+            "willingness": -0.5
+        },
+        "rescue": {
+            "competence": -0.5,
+            "willingness": -0.5
+        }
+    },
+    "lchw": {
+        "search": {
+            "competence": -0.5,
+            "willingness": 0.5
+        },
+        "clear": {
+            "competence": -0.5,
+            "willingness": 0.5
+        },
+        "rescue": {
+            "competence": -0.5,
+            "willingness": 0.5
         }
     }
 }
