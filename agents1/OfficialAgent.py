@@ -438,7 +438,7 @@ class BaselineAgent(ArtificialBrain):
                             # Tell the human to come over and be idle until human arrives
                             if not state[{'is_human_agent': True}]:
                                 if not self._waiting_for_human_to_remove_together:
-                                    self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
+                                    self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock together.',
                                                     'RescueBot') # Message the human only once
                                     self._waiting_for_human_to_remove_together = True 
                                 return None, {}
@@ -575,18 +575,21 @@ class BaselineAgent(ArtificialBrain):
                                 self._trust_check_passed_for_removal = self._passesCheckForRemoval() 
                                 self._remove_together_chosen = True  # Mark that the choice has been made
                                 self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name,self._send_message, 1)
 
 
                             if self._trust_check_passed_for_removal:
                                 # Send message *only once* to ask the human to come
                                 if not self._waiting_for_human_to_remove_together:
-                                    self._send_message(f'I trust you! Please come to {self._door["room_name"]} to remove stones together. I will wait for you for 17seconds. Better hurry!', 'RescueBot')
+                                    self._send_message(f'I trust you! Please come to {self._door["room_name"]} to remove stones together. I will wait for you for 17 seconds. Please hurry!', 'RescueBot')
                                     self._waiting_for_human_to_remove_together = True  # Start waiting
 
                                 # Keep checking if the human has arrived withing 150 ticks(15 seconds)
                                 current_tick = state['World']['nr_ticks']
                                 if state[{'is_human_agent': True}]:  # Human arrived!
                                     self._send_message(f'You arrived in time! Let’s remove the obstacle in {self._door["room_name"]}!', 'RescueBot')
+
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, 1)
 
                                     # Reset flags and perform removal together
                                     self._waiting_for_human_to_remove_together = False
@@ -599,6 +602,8 @@ class BaselineAgent(ArtificialBrain):
                                 if current_tick - self._waiting_start_tick >= 150:
                                     self._send_message(f'I’ve waited too long! I will remove the stones alone.', 'RescueBot')
                                     self._send_message(f'Removing stones blocking {self._door["room_name"]}.', 'RescueBot')
+
+                                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, -1)
 
                                     # Reset flags and proceed with solo removal
                                     self._waiting_for_human_to_remove_together = False
@@ -812,6 +817,8 @@ class BaselineAgent(ArtificialBrain):
                         self._trust_check_passed_for_rescue = self._passesCheckForRescue()
                         self._rescue_together_chosen = True  # Store decision
                         self._answered = True
+                        self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
+                        # Trigger trust change based on distance
                         if self._distance_human == 'far':
                             self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, 1, 0.2)
                         else:
@@ -824,23 +831,48 @@ class BaselineAgent(ArtificialBrain):
 
                         # Ask the human to come only once
                         if not self._waiting_for_human_to_rescue_together:
-                            self._send_message(f'Please come to {self._door["room_name"]} to carry {self._recent_vic} together.', 'RescueBot')
+                            self._send_message(f'I trust you! Please come to {self._door["room_name"]} to carry {self._recent_vic} together. I will wait for you for 15 seconds. Please hurry!', 'RescueBot')
                             self._waiting_for_human_to_rescue_together = True  # Start waiting
                             return None, {}  # Wait for the human to arrive
+                        
+                        # Keep checking if the human has arrived within 170 ticks (17 seconds)
+                        current_tick = state['World']['nr_ticks']
 
                         # Tell the human to carry the mildly injured victim together
                         if state[{'is_human_agent': True}]:
-                            self._send_message('Good to see you! Lets carry ' + str(
+                            self._send_message('You arrived on time! Lets carry ' + str(
                                 self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                                 self._recent_vic) + '.', 'RescueBot')
+                            
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name,self._send_message, 1)
 
                             # Reset flags and proceed to rescue planning
                             self._waiting_for_human_to_rescue_together = False
                             self._rescue_together_chosen = False
                             self._trust_check_passed_for_rescue = None
+                            self._waiting_start_tick = None  # ✅ Reset timer
                             self._goal_vic = self._recent_vic
                             self._recent_vic = None
                             self._phase = Phase.PLAN_PATH_TO_VICTIM
+                            return None, {}
+                        
+                        # If 170 ticks have passed and the human has NOT arrived → Rescue alone
+                        if current_tick - self._waiting_start_tick >= 170:
+                            self._send_message(f'I’ve waited too long! I will rescue {self._recent_vic} alone.', 'RescueBot')
+                            self._send_message(f'Picking up {self._recent_vic} in {self._door["room_name"]}.', 'RescueBot')
+        
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, -1)
+                            # ✅ Reset flags and proceed with solo rescue
+                            self._waiting_for_human_to_rescue_together = False
+                            self._rescue_together_chosen = False
+                            self._trust_check_passed_for_rescue = None
+                            self._waiting_start_tick = None  # ✅ Reset timer
+                            self._rescue = 'alone'
+                            self._goal_vic = self._recent_vic
+                            self._goal_loc = self._remaining[self._goal_vic]
+                            self._recent_vic = None
+                            self._phase = Phase.PLAN_PATH_TO_VICTIM
+                            return None, {}  # ✅ Continue execution
                     else:  
                         self._send_message("Sorry, I don't trust you! I decided to rescue alone!", 'RescueBot')
                         self._send_message('Picking up ' + self._recent_vic + ' in ' + self._door['room_name'] + '.',
