@@ -1,6 +1,7 @@
 from enum import Enum
 import os
 import csv
+import math
 
 class TrustBeliefs(Enum):
     SEARCH_WILLINGNESS = 1
@@ -100,6 +101,18 @@ class TrustService:
                     'remove_willingness': score[TrustBeliefs.REMOVE_WILLINGNESS],
                     'remove_competence': score[TrustBeliefs.REMOVE_COMPETENCE]
                 })
+
+    def get_new_score_logarithmic(self, current_score, direction, weight, min_clamp = -1, max_clamp = 1):
+        scaling_factor = (max_clamp - abs(current_score))  # Values closer to max get smaller updates
+
+        log_weight = math.log1p(weight) * scaling_factor
+
+        new_score = current_score + direction * log_weight
+
+        # Clamp the new score between min and max
+        new_score = max(min_clamp, min(max_clamp, new_score))
+
+        return new_score
         
     def trigger_trust_change(self, trust_belief, user_id, send_message, value, weight=0.1, message=None):
         """
@@ -117,25 +130,23 @@ class TrustService:
 
         if user_id not in self.trust_scores:
             self.trust_scores[user_id] = {
-                TrustBeliefs.SEARCH_WILLINGNESS: 0.5,
-                TrustBeliefs.SEARCH_COMPETENCE: 0.5,
-                TrustBeliefs.RESCUE_WILLINGNESS: 0.5,
-                TrustBeliefs.RESCUE_COMPETENCE: 0.5,
-                TrustBeliefs.REMOVE_WILLINGNESS: 0.5,
-                TrustBeliefs.REMOVE_COMPETENCE: 0.5
+                TrustBeliefs.SEARCH_WILLINGNESS: 0.0,
+                TrustBeliefs.SEARCH_COMPETENCE: 0.0,
+                TrustBeliefs.RESCUE_WILLINGNESS: 0.0,
+                TrustBeliefs.RESCUE_COMPETENCE: 0.0,
+                TrustBeliefs.REMOVE_WILLINGNESS: 0.0,
+                TrustBeliefs.REMOVE_COMPETENCE: 0.0
             }
 
         # Retrieve the current score for the specified trust belief.
         current_score = self.trust_scores[user_id][trust_belief]
-
-        # Calculate the new score.
-        new_score = current_score + (value * weight)
-
-        # Clamp the new score between 0 and 1 (adjust range if necessary).
-        new_score = max(0, min(1, new_score))
+        new_score = self.get_new_score_logarithmic(current_score,value,weight)
 
         # Update the trust score.
         self.trust_scores[user_id][trust_belief] = new_score
+
+        # Save the trust in a file
+        self.save_trust_file() 
 
         print("DEBUG: Updated {} for user {}: {}".format(trust_belief.name, user_id, new_score))
             
