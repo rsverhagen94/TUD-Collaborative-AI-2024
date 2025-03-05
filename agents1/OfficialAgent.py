@@ -397,8 +397,27 @@ class BaselineAgent(ArtificialBrain):
                     self._phase = Phase.REMOVE_OBSTACLE_IF_NEEDED
 
             if Phase.REMOVE_OBSTACLE_IF_NEEDED == self._phase:
+                self._answered = False
                 objects = []
                 agent_location = state[self.agent_id]['location']
+                obstacle_found = False
+
+                for info in state.values():
+                    if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance']:
+                        obstacle_found = True
+                        break
+
+                if not obstacle_found and self._remove and not self._waiting:
+                    self._send_message(
+                        'No obstacles found in ' + str(self._door[
+                                                           'room_name']) + ' despite your request for help.',
+                        'RescueBot')
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, -1)
+                    self._remove = False
+                    self._waiting = False
+                    self._phase = Phase.ENTER_ROOM
+
                 # Identify which obstacle is blocking the entrance
                 for info in state.values():
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info[
@@ -440,19 +459,36 @@ class BaselineAgent(ArtificialBrain):
                             # Tell the human to come over and be idle until human arrives
                             if not state[{'is_human_agent': True}]:
                                 if not self._waiting_for_human_to_remove_together:
-                                    self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock together.',
+                                    self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock together. I will wait 30 seconds for you',
                                                     'RescueBot') # Message the human only once
                                     self._waiting_for_human_to_remove_together = True 
+                                    self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
                                 return None, {}
                             
+                            # Keep checking if the human has arrived withing 300 ticks(30 seconds)
+                            current_tick = state['World']['nr_ticks']
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
-                                self._send_message('Great to see you! Lets remove rock blocking ' + str(self._door['room_name']) + '!',
-                                                  'RescueBot')
+                                self._send_message('You arrived in time! Lets remove rock blocking ' + str(self._door['room_name']) + '!',
+                                                'RescueBot')
+                                
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, 1)
 
                                 # Reset flags now that removal has started
+                                self._waiting_start_tick = None
                                 self._waiting_for_human_to_remove_together = False
                                 self._remove_together_chosen = False
+                                return None, {}
+
+                            # If 300 ticks have passed and the human has NOT arrived → Remove alone
+                            if current_tick - self._waiting_start_tick >= 300:
+                                self._send_message(f'I’ve waited too long! I will move on to something else', 'RescueBot')
+
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, -1)
+
+                                self._to_search.append(self._door['room_name'])
+                                self._phase = Phase.FIND_NEXT_GOAL
+                                
                                 return None, {}
                         # Remain idle untill the human communicates what to do with the identified obstacle 
                         else:
@@ -920,7 +956,9 @@ class BaselineAgent(ArtificialBrain):
                     self._recent_vic = None
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
                     if self._distance_human == 'close':
-                        self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, 1, 0.1)
+                        self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, -1, 0.2)
+                    if self.distance_human == 'far':
+                        self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, -1, 0.1)
                 # Continue searching other areas if the human decides so
                 if self.received_messages_content and self.received_messages_content[-1] == 'Continue':
                     self._answered = True
