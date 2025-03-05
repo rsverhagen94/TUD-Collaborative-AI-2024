@@ -2,8 +2,6 @@ import copy
 import datetime
 import sys, random, enum, ast, time, csv
 
-import current
-import numpy as np
 from matrx import grid_world
 from brains1.ArtificialBrain import ArtificialBrain
 from actions1.CustomActions import *
@@ -77,7 +75,7 @@ class BaselineAgent(ArtificialBrain):
         self._recent_vic = None
         self._received_messages = []
         self._moving = False
-        self._tasks = ['remove_objects', 'rescue_mild']
+        self._tasks = ['remove_objects', 'rescue_mild', 'rescue_critical']
         self._first_tick = True
         self._trustBeliefs = {}
         self._processed_messages = []
@@ -135,7 +133,7 @@ class BaselineAgent(ArtificialBrain):
         if self._agent_loc in [3, 4, 7, 10, 13, 14]:
             self._distance_drop = 'close'
 
-        # Check whether victims are currently being carried together by human and agent 
+        # Check whether victims are currently being carried together by human and agent
         for info in state.values():
             if 'is_human_agent' in info and self._human_name in info['name'] and len(
                     info['is_carrying']) > 0 and 'critical' in info['is_carrying'][0]['obj_id'] or \
@@ -364,7 +362,7 @@ class BaselineAgent(ArtificialBrain):
                     action = self._navigator.get_move_action(self._state_tracker)
                     # Check for obstacles blocking the path to the area and handle them if needed
                     if action is not None:
-                        # Remove obstacles blocking the path to the area 
+                        # Remove obstacles blocking the path to the area
                         for info in state.values():
                             if 'class_inheritance' in info and 'ObstacleObject' in info[
                                 'class_inheritance'] and 'stone' in info['obj_id'] and info['location'] not in [(9, 4),
@@ -462,7 +460,7 @@ class BaselineAgent(ArtificialBrain):
                                     self._phase = Phase.FIND_NEXT_GOAL
                                 else:
                                     return None, {}
-                        # Remain idle untill the human communicates what to do with the identified obstacle 
+                        # Remain idle untill the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
 
@@ -690,6 +688,7 @@ class BaselineAgent(ArtificialBrain):
                                     self._send_message('Found ' + vic + ' in ' + self._door[
                                         'room_name'] + ' because you told me ' + vic + ' was located here.',
                                                       'RescueBot')
+                                    self._initial_waiting_time = datetime.datetime.now()
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
                                         self._searched_rooms.append(self._door['room_name'])
@@ -751,6 +750,7 @@ class BaselineAgent(ArtificialBrain):
                     if not state[{'is_human_agent': True}]:
                         self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
                             self._recent_vic) + ' together.', 'RescueBot')
+                        self._initial_waiting_time = datetime.datetime.now()
                     # Tell the human to carry the critically injured victim together
                     if state[{'is_human_agent': True}]:
                         self._send_message('Lets carry ' + str(
@@ -758,12 +758,12 @@ class BaselineAgent(ArtificialBrain):
                             self._recent_vic) + '.', 'RescueBot')
                     self._goal_vic = self._recent_vic
                     self._recent_vic = None
+                    self._initial_waiting_time = datetime.datetime.now()
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
                 # Make a plan to rescue a found mildly injured victim together if the human decides so
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue together' and 'mild' in self._recent_vic:
                     self._rescue = 'together'
-                    self._initial_waiting_time = datetime.datetime.now()
                     self._answered = True
                     self._waiting = False
                     # Tell the human to come over and help carry the mildly injured victim
@@ -865,14 +865,18 @@ class BaselineAgent(ArtificialBrain):
                             print("Waiting for human")
                             self._waiting = True
                             self._moving = False
-                            time_passed = round((datetime.datetime.now() - self._initial_waiting_time).total_seconds(),
+                            try:
+                                time_passed = round((datetime.datetime.now() - self._initial_waiting_time).total_seconds(),
                                                 1)
+                            except:
+                                self._initial_waiting_time = datetime.datetime.now()
+                                time_passed = 0
                             threshold = 0
                             if self._distance_human == 'far':
                                 threshold = 16
                             elif self._distance_human == 'close':
                                 threshold = 13
-                            if time_passed > threshold:
+                            if time_passed > threshold and 'mild' in info['obj_id']:
                                 willingness = trustBeliefs[self._human_name]['rescue_mild']['willingness']
                                 instances = trustBeliefs[self._human_name]['rescue_mild']['instances']
                                 willingness = ((willingness * instances) + (
@@ -899,7 +903,43 @@ class BaselineAgent(ArtificialBrain):
                                         'human_name': self._human_name}
                                 else:
                                     return None, {}
-                            return None, {}
+                            if self._distance_human == 'far':
+                                threshold = 20
+                            elif self._distance_human == 'close':
+                                threshold = 16
+                            if time_passed > threshold and 'critical' in info['obj_id']:
+                                willingness = trustBeliefs[self._human_name]['rescue_critical']['willingness']
+                                instances = trustBeliefs[self._human_name]['rescue_critical']['instances']
+                                willingness = ((willingness * instances) + (
+                                        willingness - 0.02)) / (
+                                                      instances + 1)
+                                trustBeliefs[self._human_name]['rescue_critical']['instances'] += 1
+                                trustBeliefs[self._human_name]['rescue_critical']['willingness'] = willingness
+                                # Restrict the willingness belief to a range of -1 to 1
+                                trustBeliefs[self._human_name]['rescue_critical']['willingness'] = np.clip(
+                                    trustBeliefs[self._human_name]['rescue_critical']['willingness'], -1,
+                                    1)
+                                self.save_to_file(trustBeliefs)
+                                willingness = trustBeliefs[self._human_name]['rescue_critical']['willingness']
+                                decision_threshold = (1 + willingness) / 2
+                                if random.uniform(0, 1) > decision_threshold and time_passed % 3 == 0:
+
+                                    self._answered = True
+                                    self._waiting = False
+                                    self._phase = Phase.PICK_UNSEARCHED_ROOM
+                                    self._to_search.append(self._door['room_name'])
+                                    self._goal_vic = None
+                                    self._goal_loc = None
+                                    self._moving = False
+                                    self._send_message(
+                                        "Searching for another victim because I have been waiting too long",
+                                        "RescueBot")
+
+                                    return None, {}
+                                else:
+                                    print("None")
+                                    return None, {}
+
                 print("After for loop")
                 # Add the victim to the list of rescued victims when it has been picked up
                 if len(objects) == 0 and 'critical' in self._goal_vic or len(
@@ -913,6 +953,16 @@ class BaselineAgent(ArtificialBrain):
                         trustBeliefs[self._human_name]['rescue_mild']['willingness'] = willingness
                         trustBeliefs[self._human_name]['rescue_mild']['willingness'] = np.clip(
                             trustBeliefs[self._human_name]['rescue_mild']['willingness'], -1,
+                            1)
+                        self.save_to_file(trustBeliefs)
+                    if 'critical' in self._goal_vic:
+                        willingness = trustBeliefs[self._human_name]['rescue_critical']['willingness']
+                        instances = trustBeliefs[self._human_name]['rescue_critical']['instances']
+                        willingness = ((willingness * instances) + (willingness + 0.05)) / (instances + 1)
+                        trustBeliefs[self._human_name]['rescue_critical']['instances'] += 1
+                        trustBeliefs[self._human_name]['rescue_critical']['willingness'] = willingness
+                        trustBeliefs[self._human_name]['rescue_critical']['willingness'] = np.clip(
+                            trustBeliefs[self._human_name]['rescue_critical']['willingness'], -1,
                             1)
                         self.save_to_file(trustBeliefs)
                     self._waiting = False
@@ -966,7 +1016,7 @@ class BaselineAgent(ArtificialBrain):
         for info in state.values():
             if 'class_inheritance' in info and 'CollectableBlock' in info['class_inheritance']:
                 vic = str(info['img_name'][8:-4])
-                if vic in self._collected_victims and vic not in self._rescued_by_robot:
+                if vic in self._collected_victims and vic not in self._rescued_by_robot and 'mildly' in vic.lower():
                     willingness = trustBeliefs[self._human_name]['rescue_mild']['willingness']
                     instances = trustBeliefs[self._human_name]['rescue_mild']['instances']
                     willingness = ((willingness * instances) + (willingness - 0.1)) / (instances + 1)
@@ -976,17 +1026,25 @@ class BaselineAgent(ArtificialBrain):
                         trustBeliefs[self._human_name]['rescue_mild']['willingness'], -1,
                         1)
                     self.save_to_file(trustBeliefs)
-                    if 'mildly' in vic.lower():
-                        self._goal_vic = vic
-                        self._goal_loc = self._goal_locations[self._goal_vic]
-                        self._phase = Phase.PLAN_PATH_TO_DROPPOINT
-                        self._carrying = True
-                        self._rescued_by_robot.append(vic)
-                        return CarryObject.__name__, {
-                            'object_id': info['obj_id'],
-                            'human_name': self._human_name}
-                    else:
-                        return None
+                    self._goal_vic = vic
+                    self._goal_loc = self._goal_locations[self._goal_vic]
+                    self._phase = Phase.PLAN_PATH_TO_DROPPOINT
+                    self._carrying = True
+                    self._rescued_by_robot.append(vic)
+                    return CarryObject.__name__, {
+                        'object_id': info['obj_id'],
+                        'human_name': self._human_name}
+
+                if vic in self._collected_victims and vic not in self._rescued_by_robot and 'critically' in vic.lower():
+                    willingness = trustBeliefs[self._human_name]['rescue_critical']['willingness']
+                    instances = trustBeliefs[self._human_name]['rescue_critical']['instances']
+                    willingness = ((willingness * instances) + (willingness - 0.2)) / (instances + 1)
+                    trustBeliefs[self._human_name]['rescue_critical']['instances'] += 1
+                    trustBeliefs[self._human_name]['rescue_critical']['willingness'] = willingness
+                    trustBeliefs[self._human_name]['rescue_critical']['willingness'] = np.clip(
+                        trustBeliefs[self._human_name]['rescue_critical']['willingness'], -1,
+                        1)
+                    self.save_to_file(trustBeliefs)
 
     def save_to_file(self, trustBeliefs):
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
@@ -1180,6 +1238,7 @@ class BaselineAgent(ArtificialBrain):
             if message in self._processed_messages:
                 continue
             # Increase agent trust in a team member that rescued a victim
+
             if 'i will remove alone' in message.lower():
                 competence = trustBeliefs[self._human_name]['competence']
                 competence_instances = trustBeliefs[self._human_name]['competence_instances']
@@ -1253,7 +1312,28 @@ class BaselineAgent(ArtificialBrain):
                     trustBeliefs[self._human_name]['remove_mild']['willingness'] = np.clip(
                         trustBeliefs[self._human_name]['rescue_mild']['willingness'], -1,
                         1)
+                self._processed_messages.append(message)
 
+            if 'critically injured' in self._send_messages[-1].lower() and len(self._send_messages) > 1:
+                if 'continue' in message.lower():
+                    willingness = trustBeliefs[self._human_name]['rescue_critical']['willingness']
+                    instances = trustBeliefs[self._human_name]['rescue_critical']['instances']
+                    willingness = ((willingness * instances) + (willingness - 0.2)) / (instances + 1)
+                    trustBeliefs[self._human_name]['rescue_critical']['instances'] += 1
+                    trustBeliefs[self._human_name]['rescue_critical']['willingness'] = willingness
+                    trustBeliefs[self._human_name][('rescue_critical')]['willingness'] = np.clip(
+                        trustBeliefs[self._human_name]['rescue_critical']['willingness'], -1,
+                        1)
+
+                if 'rescue' in message.lower():
+                    willingness = trustBeliefs[self._human_name]['rescue_critical']['willingness']
+                    instances = trustBeliefs[self._human_name]['rescue_critical']['instances']
+                    willingness = ((willingness * instances) + (willingness + 0.1)) / (instances + 1)
+                    trustBeliefs[self._human_name]['rescue_critical']['instances'] += 1
+                    trustBeliefs[self._human_name]['rescue_critical']['willingness'] = willingness
+                    trustBeliefs[self._human_name]['rescue_critical']['willingness'] = np.clip(
+                        trustBeliefs[self._human_name]['rescue_critical']['willingness'], -1,
+                        1)
                 self._processed_messages.append(message)
 
         self.save_to_file(trustBeliefs)
