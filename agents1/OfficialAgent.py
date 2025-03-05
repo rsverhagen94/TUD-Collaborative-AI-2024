@@ -493,7 +493,7 @@ class BaselineAgent(ArtificialBrain):
                                 return None, {}
                         # If the human responds to slowly, go do something else
                         if self._waiting_with_patience and datetime.now() > self._patience:
-                            self._send_message(f"I waited for {self._patience_log} seconds, but you did not show up to clear obstacles.", "RescueBot")
+                            self._send_message(f"I waited for {self._patience_log} seconds, but you did not show up to destroy obstacles.", "RescueBot")
                             self._answered = True
                             self._waiting = False
                             self._waiting_with_patience = False
