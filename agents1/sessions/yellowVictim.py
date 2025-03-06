@@ -223,7 +223,7 @@ class YellowVictimSession(PromptSession):
         return 0
        
 
-    def on_timeout(self, number_of_actions = 0, use_confidence = 0):
+    def on_timeout(self, number_of_actions = 0, use_confidence = False):
         # Figure out what to do depending on the current phase
         if self.currPhase == self.YellowVictimPhase.WAITING_RESPONSE:
             print("Timed out waiting for response!")
