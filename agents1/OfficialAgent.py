@@ -514,9 +514,12 @@ class BaselineAgent(ArtificialBrain):
                 agent_location = state[self.agent_id]['location']
                 # Identify which obstacle is blocking the entrance
                 for info in state.values():
-                    if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info[
-                        'obj_id']:
+                    if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info['obj_id']:
+                        if info['obj_id'] in self._skipped_obstacles:
+                            continue
+                        
                         objects.append(info)
+
                         # Competence Update: Decrease trust in human if bot found obstacles at the entrance of the claimed searched area
                         if (self._re_searching or self._door['room_name'] in self._searched_rooms_claimed_by_human) and self._door['room_name'] not in self._not_penalizable:
                             competence_penalty = compute_search_competence_penalty_for_obstacle('rock', 1) #TODO: introduce confidence lvl and tune this
@@ -525,40 +528,74 @@ class BaselineAgent(ArtificialBrain):
                             self._not_penalizable.append(self._door['room_name']) # this area should not be penalized again in this search round
                             print("Search Competence Decreased: Rock found in previously searched area.")
 
-                        # Communicate which obstacle is blocking the entrance
-                        if self._answered == False and not self._remove and not self._waiting:
-                            self._send_message('Found rock blocking ' + str(self._door['room_name']) + '. Please decide whether to "Remove" or "Continue" searching. \n \n \
-                                Important features to consider are: \n safe - victims rescued: ' + str(
-                                self._collected_victims) + ' \n explore - areas searched: area ' + str(
-                                self._searched_rooms).replace('area ', '') + ' \
-                                \n clock - removal time: 5 seconds \n afstand - distance between us: ' + self._distance_human,
-                                              'RescueBot')
+                        # If we haven't asked about it yet (and not currently removing or waiting), prompt the human
+                        if self._answered is False and not self._remove and not self._waiting:
+                            self._send_message(
+                                'Found big rock blocking ' + str(self._door['room_name'])
+                                + '. Please decide whether to "Remove" or "Continue" searching. \n \n '
+                                + 'Important features to consider are: \n safe - victims rescued: ' + str(self._collected_victims)
+                                + ' \n explore - areas searched: area ' + str(self._searched_rooms).replace('area ', '')
+                                + ' \n clock - removal time: 5 seconds \n afstand - distance between us: '
+                                + self._distance_human,
+                                'RescueBot'
+                            )
                             self._waiting = True
-                            # Determine the next area to explore if the human tells the agent not to remove the obstacle
-                        if self.received_messages_content and self.received_messages_content[
-                            -1] == 'Continue' and not self._remove:
+                            # Initialize the rock obstacle session with a 200 tick timeout (roughly 20 seconds)
+                            self._rock_obstacle_session = RockObstacleSession(self, info, 200)
+                            self._current_prompt = self._rock_obstacle_session
+                        
+                        # If the human says "Continue" and we're not in forced removal mode, skip this obstacle
+                        if self.received_messages_content \
+                        and self.received_messages_content[-1] == 'Continue' \
+                        and not self._remove:
+                            if isinstance(self._current_prompt, RockObstacleSession):
+                                self._current_prompt.continue_rock()
                             self._answered = True
                             self._waiting = False
-                            # Add area to the to do list
+                            self._skipped_obstacles.append(info['obj_id'])
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
-                        # Wait for the human to help removing the obstacle and remove the obstacle together
-                        if self.received_messages_content and self.received_messages_content[
-                            -1] == 'Remove' or self._remove:
+
+                        # If the user says "Remove"
+                        elif self.received_messages_content and self.received_messages_content[-1] == 'Remove':
                             if not self._remove:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
-                            if not state[{'is_human_agent': True}]:
-                                self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock.',
-                                                  'RescueBot')
-                                return None, {}
-                            # Tell the human to remove the obstacle when he/she arrives
+                                self._remove = True
+                                if isinstance(self._current_prompt, RockObstacleSession):
+                                    self._current_prompt.remove_rock()
+                                else:
+                                    # If for some reason the session is missing, create it
+                                    self._rock_obstacle_session = RockObstacleSession(self, info, 200)
+                                    self._current_prompt = self._rock_obstacle_session
+                                    self._current_prompt.remove_rock()
+                        
+                        # Handle the removal process
+                        if self._remove:
+                            # Check if the human has arrived
                             if state[{'is_human_agent': True}]:
-                                self._send_message('Lets remove rock blocking ' + str(self._door['room_name']) + '!',
-                                                  'RescueBot')
+                                # Human is here, tell them to press D to remove the rock
+                                self._send_message(
+                                    'Thank you for coming to help! Press D to remove the big rock blocking ' + str(self._door['room_name']) + '.',
+                                    'RescueBot'
+                                )
+                                # Let the game handle the actual removal when player presses D
                                 return None, {}
-                        # Remain idle untill the human communicates what to do with the identified obstacle 
+                            else:
+                                # Still waiting for human to arrive
+                                # The session's wait() method will handle timeout if the human doesn't arrive
+                                if isinstance(self._current_prompt, PromptSession):
+                                    result = self._current_prompt.wait()
+                                    if result:
+                                        return result
+                                return None, {}
+                        
+                        # If none of the above triggered, we are likely waiting for a response
                         else:
+                            # Let the prompt session handle waiting, timeouts, etc.
+                            if isinstance(self._current_prompt, PromptSession):
+                                result = self._current_prompt.wait()
+                                if result:
+                                    return result
                             return None, {}
 
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'tree' in info[
