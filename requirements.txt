@@ -19,3 +19,4 @@ flask          == 2.1.3
 
 # Other libraries requested by students and added to make sure
 # Everyone uses the same versions.
+matplotlib

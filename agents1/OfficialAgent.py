@@ -957,7 +957,7 @@ class BaselineAgent(ArtificialBrain):
                     self._phase = Phase.PLAN_PATH_TO_VICTIM
                     if self._distance_human == 'close':
                         self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, -1, 0.2)
-                    if self.distance_human == 'far':
+                    if self._distance_human == 'far':
                         self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, -1, 0.1)
                 # Continue searching other areas if the human decides so
                 if self.received_messages_content and self.received_messages_content[-1] == 'Continue':
