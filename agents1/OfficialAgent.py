@@ -74,6 +74,10 @@ class BaselineAgent(ArtificialBrain):
         self._received_messages = []
         self._moving = False
 
+        # just for keeping track of updates
+        self.receivedMessages_state = len(self.received_messages)
+        self._send_messages_state = len(self._send_messages)
+
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
         self._state_tracker = StateTracker(agent_id=self.agent_id)
@@ -90,34 +94,20 @@ class BaselineAgent(ArtificialBrain):
         for member in state['World']['team_members']:
             if member != agent_name and member not in self._team_members:
                 self._team_members.append(member)
-
         # Create a list of received messages from the human team member
         for mssg in self.received_messages:
             for member in self._team_members:
                 if mssg.from_id == member and mssg.content not in self._received_messages:
                     self._received_messages.append(mssg.content)
-
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
-
         # Initialize and update trust beliefs for team members
         trustBeliefs = self._loadBelief(self._team_members, self._folder)
-
         self._trustBelief(self._team_members, trustBeliefs, self._folder, self._received_messages)
-
-
-
-
-
-
-
-        # ------------------------------------------
-        # behavior of the robot
 
         # Check whether human is close in distance
         if state[{'is_human_agent': True}]:
             self._distance_human = 'close'
-
         if not state[{'is_human_agent': True}]:
             # Define distance between human and agent based on last known area locations
             if self._agent_loc in [1, 2, 3, 4, 5, 6, 7] and self._human_loc in [8, 9, 10, 11, 12, 13, 14]:
@@ -418,7 +408,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('Lets remove rock blocking ' + str(self._door['room_name']) + '!',
                                                    'RescueBot')
                                 return None, {}
-                        # Remain idle untill the human communicates what to do with the identified obstacle 
+                        # Remain idle untill the human communicates what to do with the identified obstacle
                         else:
                             return None, {}
 
@@ -471,7 +461,7 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                                'RescueBot')
                             self._waiting = True
-                        # Determine the next area to explore if the human tells the agent not to remove the obstacle          
+                        # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             self._answered = True
@@ -937,7 +927,7 @@ class BaselineAgent(ArtificialBrain):
                 if trustfile_header == []:
                     trustfile_header = row
                     continue
-                # Retrieve trust values 
+                # Retrieve trust values
                 if row and row[0] == self._human_name:
                     name = row[0]
                     competence = float(row[1])
@@ -955,14 +945,13 @@ class BaselineAgent(ArtificialBrain):
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
 
-        # Update the trust value based on for example the received messages
-        for message in receivedMessages:
-            # Increase agent trust in a team member that rescued a victim
-            if 'Collect' in message:
-                trustBeliefs[self._human_name]['competence'] += 0.10
-                # Restrict the competence belief to a range of -1 to 1
-                trustBeliefs[self._human_name]['competence'] = np.clip(trustBeliefs[self._human_name]['competence'], -1,
-                                                                       1)
+        # I have two things to look at right now
+        # receivedMessages and _send_messages
+        # first just check for updated states
+        if self.receivedMessages_state < len(receivedMessages):
+            # update to the state
+            self.updateTrustBelief(trustBeliefs, receivedMessages, self._send_messages)
+
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -1019,3 +1008,40 @@ class BaselineAgent(ArtificialBrain):
             else:
                 locs.append((x[i], max(y)))
         return locs
+
+    def updateTrustBelief(self, trustBeliefs, receivedMessages, _send_messages):
+        # message human
+        human_message = receivedMessages[self.receivedMessages_state]
+        self.receivedMessages_state += 1
+        print("human said:", human_message)
+
+        # message robot
+        if self._send_messages_state < len(self._send_messages):
+            robot_message = self._send_messages[self._send_messages_state]
+            self._send_messages_state += 1
+
+            print("robot said:", robot_message)
+            # found a victim
+            if 'injured' in robot_message:
+                if 'mildly' in robot_message:
+                    if 'Rescue alone' in human_message and 'far' in robot_message:
+                        # everything is fine
+                        pass
+                    if 'Rescue alone' in human_message and 'close' in robot_message:
+                        # human should have help, but it is not that important
+                        trustBeliefs[self._human_name]['willingness'] -= 0.05
+                    if 'Rescue together' in human_message:
+                        # human seems to want to work together
+                        trustBeliefs[self._human_name]['willingness'] += 0.1
+                    if 'Continue' in human_message:
+                        # A little weird, but probably fine
+                        pass
+                if 'critically' in robot_message:
+                    if 'Rescue' in human_message:
+                        trustBeliefs[self._human_name]['willingness'] += 0.1
+                    if 'Continue' in human_message:
+                        # bad sign
+                        trustBeliefs[self._human_name]['willingness'] -= 0.05
+
+
+        return trustBeliefs
