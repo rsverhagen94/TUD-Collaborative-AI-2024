@@ -31,7 +31,7 @@ class YellowVictimSession(PromptSession):
 
     # Factors to adjust Competence and Willingness
     # Robot found a yellow victim
-    def robot_continue_rescue(self, number_of_actions, use_confidence = False):
+    def robot_continue_rescue(self, number_of_actions = 0, use_confidence = False):
         print("Robot Continue Rescue heard")
         
         increment_value = -0.1   
@@ -41,7 +41,7 @@ class YellowVictimSession(PromptSession):
         self.increment_values("rescue_yellow", increment_value, 0, self.bot)
         self.delete_self()
         
-    def robot_rescue_alone(self, number_of_actions, use_confidence = False):
+    def robot_rescue_alone(self, number_of_actions = 0, use_confidence = False):
         print("Robot Rescue Alone heard")
         
         increment_value = 0.1   
@@ -51,7 +51,7 @@ class YellowVictimSession(PromptSession):
         self.increment_values("rescue_yellow", increment_value, 0, self.bot)
         self.delete_self()
 
-    def robot_rescue_together(self, ttl=50, number_of_actions, use_confidence = False):
+    def robot_rescue_together(self, ttl=50, number_of_actions = 0, use_confidence = False):
         print("Robot Rescue Together heard")
         
         increment_value = 0.15   
@@ -65,7 +65,7 @@ class YellowVictimSession(PromptSession):
         self.ttl = ttl
   
     
-    def human_showed_up(self, number_of_actions, use_confidence = False):
+    def human_showed_up(self, number_of_actions = 0, use_confidence = False):
         print("Human showed up on time to rescue Yellow Victim together")
         
         increment_value = 0.1   
@@ -76,7 +76,7 @@ class YellowVictimSession(PromptSession):
     
     
     # Human found a yellow victim       
-    def human_found_alone_truth(self, number_of_actions, use_confidence = False):
+    def human_found_alone_truth(self, number_of_actions = 0, use_confidence = False):
         print("Human claimed to have Found a new Yellow Victim")
         
         increment_value = 0.1   
@@ -85,7 +85,7 @@ class YellowVictimSession(PromptSession):
             
         self.increment_values("rescue_yellow", increment_value, 0.0, self.bot)
     
-    def human_found_alone_lie(self, number_of_actions, use_confidence = False):
+    def human_found_alone_lie(self, number_of_actions = 0, use_confidence = False):
         print("Human claimed to have Found a new Yellow Victim, while this victim has been Found before")
         
         increment_value = -0.15   
@@ -95,7 +95,7 @@ class YellowVictimSession(PromptSession):
         self.increment_values("rescue_yellow", increment_value, 0.0, self.bot)
     
     
-    def human_collect_alone_truth(self, number_of_actions, use_confidence = False):
+    def human_collect_alone_truth(self, number_of_actions = 0, use_confidence = False):
         # higher competencec than human_rescue_together, because he can pickup alone
         print("Human claimed to have Collected a new Yellow Victim")
         
@@ -105,7 +105,7 @@ class YellowVictimSession(PromptSession):
             
         self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)
     
-    def human_collect_alone_lie(self, number_of_actions, use_confidence = False):
+    def human_collect_alone_lie(self, number_of_actions = 0, use_confidence = False):
         print("Human claimed to have Collected a new Yellow Victim, while this victim has been Collected before")
         
         increment_value = -0.15   
@@ -114,7 +114,7 @@ class YellowVictimSession(PromptSession):
             
         self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)
     
-    def human_collect_alone_lie_location(self, number_of_actions, use_confidence = False):
+    def human_collect_alone_lie_location(self, number_of_actions = 0, use_confidence = False):
         print("Human claimed to have Collected a new Yellow Victim, while this victim has been (claimed to be) found elsewhere")
         
         increment_value = -0.05   
@@ -124,7 +124,7 @@ class YellowVictimSession(PromptSession):
         self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)    
     
     
-    def human_rescue_together(self, number_of_actions, use_confidence = False):
+    def human_rescue_together(self, number_of_actions = 0, use_confidence = False):
         pass
         
 
@@ -197,7 +197,7 @@ class YellowVictimSession(PromptSession):
             print("Yellow Victim Session Deleted")
     
     
-    def wait(self, number_of_actions, use_confidence = False):
+    def wait(self, number_of_actions = 0, use_confidence = False):
         if self.ttl % 5 == 0 and self.ttl > 0:
             print("ttl:", self.ttl)
 
@@ -223,7 +223,7 @@ class YellowVictimSession(PromptSession):
         return 0
        
 
-    def on_timeout(self, number_of_actions, use_confidence):
+    def on_timeout(self, number_of_actions = 0, use_confidence = 0):
         # Figure out what to do depending on the current phase
         if self.currPhase == self.YellowVictimPhase.WAITING_RESPONSE:
             print("Timed out waiting for response!")
