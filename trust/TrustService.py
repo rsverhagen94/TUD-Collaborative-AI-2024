@@ -214,7 +214,12 @@ class TrustService:
                     evolution_data[belief].append((ts, new_score))
                     all_timestamps.append(ts)
         
-        global_t0 = min(all_timestamps)
+        if not all_timestamps:
+            print(f"No trust evolution data available for user: {user_id}")
+            return  # Exit safely
+
+        global_t0 = min(all_timestamps)  # Now safe to call
+
         
         def format_time(sec):
             h = int(sec // 3600)
