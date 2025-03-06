@@ -1,7 +1,7 @@
 from enum import Enum
-import os
 import csv
 import math
+from pathlib import Path
 
 class TrustBeliefs(Enum):
     SEARCH_WILLINGNESS = 1
@@ -11,9 +11,15 @@ class TrustBeliefs(Enum):
     REMOVE_WILLINGNESS = 5
     REMOVE_COMPETENCE = 6
 
+class Baselines(Enum):
+    ALWAYS_TRUST = 1
+    NEVER_TRUST = -1
+    ADAPTIVE = 0
+
 class TrustService:
+    HEADER = ['user_id'] + [belief.name.lower() for belief in TrustBeliefs]
     
-    def __init__(self):
+    def __init__(self, baseline=Baselines.NEVER_TRUST):
         """
         Initializes the TrustService class.
         Attributes:
@@ -33,9 +39,9 @@ class TrustService:
             # }
         """
         
-        self.csv_file = 'trust/trust_scores.csv'
-        self.trust_scores = {}
-        os.makedirs(os.path.dirname(self.csv_file), exist_ok=True)
+        self.baseline = baseline
+        self.csv_file = Path('trust/trust_scores.csv')
+        self.csv_file.parent.mkdir(parents=True, exist_ok=True)
         
         # Perceived state represents the agent's understanding of the world.
         # perceived_state["rooms"] is a dictionary where keys are room IDs and values are dictionaries with room attributes.
@@ -43,64 +49,36 @@ class TrustService:
         # perceived_state["rooms"]["room1"]["searched"] = 1 indicates that room1 has been searched by a human.
         # perceived_state["rooms"]["room1"]["searched"] = 2 indicates that room1 has been searched by a robot.
         self.perceived_state = {}
+        
+        self.trust_scores = {}
 
     def create_trust_file(self):
-        if not os.path.exists(self.csv_file):
-            with open(self.csv_file, 'w', newline='') as f:
+        if not self.csv_file.exists():
+            with self.csv_file.open('w', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    'user_id',
-                    'search_willingness',
-                    'search_competence',
-                    'rescue_willingness',
-                    'rescue_competence',
-                    'remove_willingness',
-                    'remove_competence'
-                ])
+                writer.writerow(self.HEADER)
             
     def load_trust_file(self):
-        if not os.path.exists(self.csv_file):
-            self.create_trust_file()
-        with open(self.csv_file, 'r', newline='') as f:
+        self.create_trust_file()
+        with self.csv_file.open('r', newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 user_id = row['user_id']
-                trust_score = {
-                    TrustBeliefs.SEARCH_WILLINGNESS: float(row['search_willingness']),
-                    TrustBeliefs.SEARCH_COMPETENCE: float(row['search_competence']),
-                    TrustBeliefs.RESCUE_WILLINGNESS: float(row['rescue_willingness']),
-                    TrustBeliefs.RESCUE_COMPETENCE: float(row['rescue_competence']),
-                    TrustBeliefs.REMOVE_WILLINGNESS: float(row['remove_willingness']),
-                    TrustBeliefs.REMOVE_COMPETENCE: float(row['remove_competence'])
-                }
+                if self.baseline == Baselines.ADAPTIVE:
+                    trust_score = {belief: float(row[belief.name.lower()]) for belief in TrustBeliefs}
+                else:
+                    trust_score = {belief: self.baseline.value for belief in TrustBeliefs}
                 self.trust_scores[user_id] = trust_score
         
     def save_trust_file(self):
-        if not os.path.exists(self.csv_file):
-            self.create_trust_file()
-        # Write the combined data back to the file.
-        with open(self.csv_file, 'w', newline='') as f:
-            fieldnames = [
-                'user_id',
-                'search_willingness',
-                'search_competence',
-                'rescue_willingness',
-                'rescue_competence',
-                'remove_willingness',
-                'remove_competence'
-            ]
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+        self.create_trust_file()
+        with self.csv_file.open('w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=self.HEADER)
             writer.writeheader()
             for user_id, score in self.trust_scores.items():
-                writer.writerow({
-                    'user_id': user_id,
-                    'search_willingness': score[TrustBeliefs.SEARCH_WILLINGNESS],
-                    'search_competence': score[TrustBeliefs.SEARCH_COMPETENCE],
-                    'rescue_willingness': score[TrustBeliefs.RESCUE_WILLINGNESS],
-                    'rescue_competence': score[TrustBeliefs.RESCUE_COMPETENCE],
-                    'remove_willingness': score[TrustBeliefs.REMOVE_WILLINGNESS],
-                    'remove_competence': score[TrustBeliefs.REMOVE_COMPETENCE]
-                })
+                row = {'user_id': user_id}
+                row.update({belief.name.lower(): score[belief] for belief in TrustBeliefs})
+                writer.writerow(row)
 
     def get_new_score_logarithmic(self, current_score, direction, weight, min_clamp = -1, max_clamp = 1):
         scaling_factor = (max_clamp - abs(current_score))  # Values closer to max get smaller updates
@@ -124,6 +102,10 @@ class TrustService:
             value (int): The direction of change (-1 or 1) indicating a decrease or increase.
             weight (float): A multiplier for how much the trust score should change.
         """
+        if self.baseline != Baselines.ADAPTIVE:
+            send_message("Trust is set to a baseline value, no change will be made.", 'DEBUG TRUST')
+            return
+        
         send_message("{} change triggered for user {} with value {} and weight {}".format(trust_belief, user_id, value, weight), 'DEBUG TRUST', True)
         if message:
             send_message("Message: {}".format(message), 'DEBUG TRUST')
