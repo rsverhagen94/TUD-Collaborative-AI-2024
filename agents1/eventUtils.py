@@ -50,6 +50,10 @@ class PromptSession:
         """
         Adjust the increment based on confidence.
         Formula: (1 - confidence) * base_increment
+        
+        The logic behind this: Looking through the POV of the current Willingness and Competence values,
+        - Low confidence => You have low confidence in these values at the moment, so you will allow for large magnitude updates (the returned increment)
+        - High confidence => You have high confidence in these values at the moment, so you won't allow for large magnitude updates (the returned increment)
         """
         confidence = self.calculate_confidence(number_of_actions, confidence_constant)
         return (1 - confidence) * base_increment
