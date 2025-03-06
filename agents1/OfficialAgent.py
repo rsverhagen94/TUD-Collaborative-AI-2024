@@ -104,7 +104,11 @@ class BaselineAgent(ArtificialBrain):
         self._yellow_victim_session = None
         self._claimed_collected_victims = []
         self._yellow_victim_processed_messages = set()
+        
+        self._number_of_actions_yellow_victim = 0
 
+        
+        # Used when Rescuing Yellow Victims
         self._red_victim_session = None
         self._number_of_red_victims_saved = 0
 
@@ -222,6 +226,7 @@ class BaselineAgent(ArtificialBrain):
                 # Human Showed Up
                 if 'mild' in info['is_carrying'][0]['obj_id']:
                     if isinstance(self._yellow_victim_session, PromptSession):
+                        self._number_of_actions_yellow_victim += 1
                         self._yellow_victim_session.delete_yellow_victim_session()
 
                 if 'critical' in info['is_carrying'][0]['obj_id']:
@@ -1050,17 +1055,19 @@ class BaselineAgent(ArtificialBrain):
                     self._rescue = 'together'
                     self._answered = True
                     self._waiting = False
+                    
+                    self._number_of_actions_yellow_victim += 1
 
                     # Tell the human to come over and help carry the mildly injured victim
                     if not state[{'is_human_agent': True}]:
-                        self._yellow_victim_session.robot_rescue_together()
+                        self._yellow_victim_session.robot_rescue_together(self._number_of_actions_yellow_victim, True)
 
                         self._send_message('Please come to ' + str(self._door['room_name']) + ' to carry ' + str(
                             self._recent_vic) + ' together.', 'RescueBot')
 
                     # Tell the human to carry the mildly injured victim together (this code gets reached when the human is visible to the robot)
                     if state[{'is_human_agent': True}]:
-                        self._yellow_victim_session.robot_rescue_together()
+                        self._yellow_victim_session.robot_rescue_together(self._number_of_actions_yellow_victim, True)
 
                         self._send_message('Lets carry ' + str(
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
@@ -1073,7 +1080,10 @@ class BaselineAgent(ArtificialBrain):
                 # Make a plan to rescue the mildly injured victim alone if the human decides so, and communicate this to the human
                 if self.received_messages_content and self.received_messages_content[
                     -1] == 'Rescue alone' and 'mild' in self._recent_vic:
-                    self._yellow_victim_session.robot_rescue_alone()
+                    
+                    self._number_of_actions_yellow_victim += 1
+                    
+                    self._yellow_victim_session.robot_rescue_alone(self._number_of_actions_yellow_victim, True)
 
                     self._send_message('Picking up ' + self._recent_vic + ' in ' + self._door['room_name'] + '.',
                                       'RescueBot')
@@ -1090,9 +1100,12 @@ class BaselineAgent(ArtificialBrain):
                     
                 # Continue searching other areas if the human decides so
                 if self.received_messages_content and self.received_messages_content[-1] == 'Continue':
+                    
                     # Check if the recent victim is a yellow or red victim
                     if isinstance(self._yellow_victim_session, YellowVictimSession):
-                        self._yellow_victim_session.robot_continue_rescue()
+                        self._number_of_actions_yellow_victim += 1
+                        self._yellow_victim_session.robot_continue_rescue(self._number_of_actions_yellow_victim, True)
+                        
                     elif isinstance(self._red_victim_session, RedVictimSession):
                         self._red_victim_session.robot_continue_rescue()
                     
@@ -1107,7 +1120,7 @@ class BaselineAgent(ArtificialBrain):
                 if self.received_messages_content and self._waiting and self.received_messages_content[
                     -1] != 'Rescue' and self.received_messages_content[-1] != 'Continue':
                     if isinstance(self._yellow_victim_session, PromptSession):
-                        self._yellow_victim_session.wait()
+                        self._yellow_victim_session.wait(self._number_of_actions_yellow_victim, True)
                     return None, {}
 
 
@@ -1173,8 +1186,7 @@ class BaselineAgent(ArtificialBrain):
 
                         if 'mild' in info['obj_id']:
                             if isinstance(self._yellow_victim_session, PromptSession):
-                                # Added return
-                                timeout_encountered = self._yellow_victim_session.wait()
+                                timeout_encountered = self._yellow_victim_session.wait(self._number_of_actions_yellow_victim, True)
                                 if timeout_encountered == 1:
                                     return None, {}
                         
@@ -1356,6 +1368,8 @@ class BaselineAgent(ArtificialBrain):
                         self._searched_rooms_claimed_by_human.append(area)
                     # avoid processing the same message multiple times
                     self._consumed_messages.add(msg)
+                
+                
                 # If a received message involves team members finding victims, add these victims and their locations to memory
                 if msg.startswith("Found:"):
                     # Identify which victim and area it concerns
@@ -1381,13 +1395,15 @@ class BaselineAgent(ArtificialBrain):
                     if msg not in self._yellow_victim_processed_messages and 'mild' in foundVic:   
                         self._yellow_victim_session = YellowVictimSession(self, None, 100)
                         
+                        self._number_of_actions_yellow_victim += 1
+                        
                         # Human claimed to have found a new yellow victim
                         if foundVic not in self._found_victims:
-                            self._yellow_victim_session.human_found_alone_truth()
+                            self._yellow_victim_session.human_found_alone_truth(self._number_of_actions_yellow_victim, True)
                         
                         # Human claimed to have found a new yellow victim that was already found
                         if foundVic in self._found_victims:
-                            self._yellow_victim_session.human_found_alone_lie()
+                            self._yellow_victim_session.human_found_alone_lie(self._number_of_actions_yellow_victim, True)
                         
                         self._yellow_victim_session.delete_yellow_victim_session(False)
 
@@ -1435,13 +1451,15 @@ class BaselineAgent(ArtificialBrain):
                     if msg not in self._yellow_victim_processed_messages and 'mild' in collectVic:   
                         self._yellow_victim_session = YellowVictimSession(self, None, 100)
                         
+                        self._number_of_actions_yellow_victim += 1
+                        
                         # Human claimed to have collect a new yellow victim
                         if collectVic not in self._found_victims and collectVic not in self._collected_victims and collectVic not in self._claimed_collected_victims:
-                            self._yellow_victim_session.human_collect_alone_truth()
+                            self._yellow_victim_session.human_collect_alone_truth(self._number_of_actions_yellow_victim, True)
                         
                         # Human claimed to have collect a new yellow victim that was already collected
                         if collectVic in self._collected_victims or collectVic in self._claimed_collected_victims:
-                            self._yellow_victim_session.human_collect_alone_lie()
+                            self._yellow_victim_session.human_collect_alone_lie(self._number_of_actions_yellow_victim, True)
                         
                         self._yellow_victim_session.delete_yellow_victim_session(False)
                         
@@ -1458,7 +1476,8 @@ class BaselineAgent(ArtificialBrain):
                        
                         # A lie about the victim location has occured
                         self._yellow_victim_session = YellowVictimSession(self, None, 100)
-                        self._yellow_victim_session.human_collect_alone_lie_location()
+                        # (Dont do self._number_of_actions_yellow_victim += 1 here)
+                        self._yellow_victim_session.human_collect_alone_lie_location(self._number_of_actions_yellow_victim, True)
                         self._yellow_victim_session.delete_yellow_victim_session(False)
 
                     
