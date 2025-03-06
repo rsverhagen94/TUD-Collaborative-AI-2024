@@ -11,6 +11,7 @@ from matrx.agents.agent_utils.state_tracker import StateTracker
 from matrx.actions.door_actions import OpenDoorAction
 from matrx.actions.object_actions import GrabObject, DropObject, RemoveObject
 from matrx.actions.move_actions import MoveNorth
+import random
 from matrx.messages.message import Message
 from matrx.messages.message_manager import MessageManager
 from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, DropObjectTogether, CarryObject, Drop
@@ -253,12 +254,19 @@ class BaselineAgent(ArtificialBrain):
                     if vic in self._found_victims and vic not in self._todo:
                         self._goal_vic = vic
                         self._goal_loc = remaining[vic]
+
+                        trust = self._decide((
+                            trustBeliefs['competency_rescue_mildlyInjured'] +
+                            trustBeliefs['competency arrival'] +
+                            trustBeliefs['willingness response']
+                        ) / 3.0)
+
                         # Rescue together when victim is critical or when the human is weak and the victim is mildly injured
-                        if 'critical' in vic or 'mild' in vic and self._condition == 'weak':
+                        if 'critical' in vic or trust:
                             self._rescue = 'together'
-                        # Rescue alone if the victim is mildly injured and the human not weak
-                        if 'mild' in vic and self._condition != 'weak':
+                        else:
                             self._rescue = 'alone'
+
                         # Plan path to victim because the exact location is known (i.e., the agent found this victim)
                         if 'location' in self._found_victim_logs[vic].keys():
                             self._phase = Phase.PLAN_PATH_TO_VICTIM
@@ -988,11 +996,14 @@ class BaselineAgent(ArtificialBrain):
                     receivedMessages[member].append(mssg.content)
         # Check the content of the received messages
         for mssgs in receivedMessages.values():
+            trustBeliefs = self._loadBelief(self._team_members, self._folder)
+
             for msg in mssgs:
                 # If a received message involves team members searching areas, add these areas to the memory of areas that have been explored
-                if msg.startswith("Search:"):
+                if msg.startswith("Search:") and msg not in self._processed_messages:
                     area = 'area ' + msg.split()[-1]
-                    if area not in self._searched_rooms:
+                    decision = self._decide(trustBeliefs[self._human_name]['willingness_search'])
+                    if decision and area not in self._searched_rooms:
                         self._searched_rooms.append(area)
                 # If a received message involves team members finding victims, add these victims and their locations to memory
                 if msg.startswith("Found:"):
@@ -1073,6 +1084,9 @@ class BaselineAgent(ArtificialBrain):
                         area = 'area ' + msg.split()[-1]
                         self._send_message('Will come to ' + area + ' after dropping ' + self._goal_vic + '.',
                                           'RescueBot')
+
+                self._processed_messages.append(msg)
+
             # Store the current location of the human in memory
             if mssgs and mssgs[-1].split()[-1] in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13',
                                                    '14']:
@@ -1121,16 +1135,21 @@ class BaselineAgent(ArtificialBrain):
             attribute, update_value = addition
             trustBeliefs[self._human_name][attribute] += update_value
 
-        for message in receivedMessages:
-            if 'Collect' in message and message not in self._processed_messages:
-                self._processed_messages.append(message)
-
+        # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             csv_writer.writerow(['name'] + self._possible_attributes)
             csv_writer.writerow([self._human_name] + [trustBeliefs[self._human_name][attribute] for attribute in self._possible_attributes])
 
         return trustBeliefs
+
+    '''
+    1 means we trust, 0 means we don't trust
+    '''
+    def _decide(self, trust):
+        rand = (random.random() * 2 - 1)
+        print(rand, trust)
+        return rand < trust
 
     def _send_message(self, mssg, sender):
         '''
