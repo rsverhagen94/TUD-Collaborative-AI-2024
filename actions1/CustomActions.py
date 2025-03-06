@@ -2,9 +2,11 @@ import numpy as np
 from matrx.actions.action import Action, ActionResult
 from matrx.objects.agent_body import AgentBody
 from matrx.objects.standard_objects import AreaTile
-from matrx.actions.object_actions import _is_drop_poss, _act_drop, _possible_drop, _find_drop_loc, GrabObject, GrabObjectResult, RemoveObject, RemoveObjectResult, DropObject
+from matrx.actions.object_actions import _is_drop_poss, _act_drop, _possible_drop, _find_drop_loc, GrabObject, \
+    GrabObjectResult, RemoveObject, RemoveObjectResult, DropObject
 from matrx.utils import get_distance
 import random
+
 
 class Idle(Action):
     """ Let's an agent be idle for a specified number of ticks.
@@ -25,6 +27,7 @@ class Idle(Action):
         in the :meth:`matrx.agents.agent_brain.AgentBrain.decide_on_action` method, as so:
         ``return >action_name<, {'action_duration': >ticks<}``
     """
+
     def __init__(self, duration_in_ticks=1):
         super().__init__(duration_in_ticks)
 
@@ -38,6 +41,7 @@ class IdleResult(ActionResult):
 
     def __init__(self, result, succeeded):
         super().__init__(result, succeeded)
+
 
 class RemoveObjectTogether(Action):
     """ Removes an object from the world.
@@ -119,8 +123,13 @@ class RemoveObjectTogether(Action):
         objects_in_range.pop(agent_id)
 
         for obj in objects_in_range:  # loop through all objects in range
-            if obj == object_id and get_distance(other_agent['location'], world_state[obj]['location'])<=remove_range and get_distance(other_human['location'], world_state[obj]['location'])<=remove_range and 'rock' in obj or \
-            obj == object_id and get_distance(other_agent['location'], world_state[obj]['location'])<=remove_range and get_distance(other_human['location'], world_state[obj]['location'])<=remove_range and 'stone' in obj:  # if object is in that list
+            if obj == object_id and get_distance(other_agent['location'],
+                                                 world_state[obj]['location']) <= remove_range and get_distance(
+                    other_human['location'], world_state[obj]['location']) <= remove_range and 'rock' in obj or \
+                    obj == object_id and get_distance(other_agent['location'],
+                                                      world_state[obj]['location']) <= remove_range and get_distance(
+                other_human['location'],
+                world_state[obj]['location']) <= remove_range and 'stone' in obj:  # if object is in that list
                 success = grid_world.remove_from_grid(object_id)  # remove it, success is whether GridWorld succeeded
                 if success:  # if we succeeded in removal return the appropriate ActionResult
                     return RemoveObjectResult(RemoveObjectResult.OBJECT_REMOVED.replace('object_id'.upper(),
@@ -305,7 +314,7 @@ class CarryObject(Action):
             return GrabObjectResult(GrabObjectResult.RESULT_OBJECT_UNMOVABLE, False)
         else:
             return _is_possible_grab(grid_world, agent_id=agent_id, object_id=object_id, grab_range=grab_range,
-                                    max_objects=max_objects) 
+                                     max_objects=max_objects)
 
     def mutate(self, grid_world, agent_id, world_state, **kwargs):
         """ Grabs an object.
@@ -372,8 +381,8 @@ class CarryObject(Action):
 
         if 'mild' in object_id and kwargs['human_name'] in agent_id:
             reg_ag.change_property("img_name", "/images/carry-mild-human.svg")
-        #if 'critical' in object_id and 'bot' in agent_id:
-            # change our image 
+        # if 'critical' in object_id and 'bot' in agent_id:
+        # change our image
         #    reg_ag.change_property("img_name", "/images/carry-critical-robot.svg")
         if 'mild' in object_id and 'bot' in agent_id:
             reg_ag.change_property("img_name", "/images/carry-mild-robot.svg")
@@ -453,6 +462,7 @@ class GrabObjectResult(ActionResult):
     def __init__(self, result, succeeded):
         super().__init__(result, succeeded)
 
+
 class Drop(Action):
     """ Drops a carried object.
         The action that can drop an :class:`matrx.objects.env_object.EnvObject`
@@ -480,7 +490,7 @@ class Drop(Action):
         :class:`matrx.actions.move_actions.Move` actions: whenever an agent moves
         who holds objects, those objects it is holding are also moved with it.
         """
-    
+
     def __init__(self, duration_in_ticks=0):
         super().__init__(duration_in_ticks)
 
@@ -529,13 +539,11 @@ class Drop(Action):
         else:
             return DropObjectResult(DropObjectResult.RESULT_NO_OBJECT, False)
 
-        #if 'critical' in obj_id or 'strength' in kwargs and 'mild' in obj_id and 'weak' in kwargs['strength']:
-        if 'critical' in obj_id or 'mild' in obj_id and other_agent.properties['visualization']['opacity']==0:
-            return DropObjectResult(DropObjectResult.RESULT_UNKNOWN_OBJECT_TYPE, False)            
+        # if 'critical' in obj_id or 'strength' in kwargs and 'mild' in obj_id and 'weak' in kwargs['strength']:
+        if 'critical' in obj_id or 'mild' in obj_id and other_agent.properties['visualization']['opacity'] == 0:
+            return DropObjectResult(DropObjectResult.RESULT_UNKNOWN_OBJECT_TYPE, False)
         else:
             return _possible_drop(grid_world, agent_id=agent_id, obj_id=obj_id, drop_range=drop_range)
-
-            
 
     def mutate(self, grid_world, agent_id, world_state, **kwargs):
         """ Drops the carried object.
@@ -575,7 +583,7 @@ class Drop(Action):
             objects can be on the same location.
         """
         reg_ag = grid_world.registered_agents[agent_id]
-        if kwargs['human_name'] in agent_id and len(reg_ag.is_carrying)<2:
+        if kwargs['human_name'] in agent_id and len(reg_ag.is_carrying) < 2:
             reg_ag.change_property("img_name", "/images/rescue-man-final3.svg")
         if 'bot' in agent_id:
             reg_ag.change_property("img_name", "/images/robot-final4.svg")
@@ -671,6 +679,7 @@ class DropObjectResult(ActionResult):
         super().__init__(result, succeeded)
         self.obj_id = obj_id
 
+
 class CarryObjectTogether(Action):
     """ Carries objects together.
     The action that can pick up / grab and hold an
@@ -741,12 +750,12 @@ class CarryObjectTogether(Action):
         grab_range = np.inf if 'grab_range' not in kwargs else kwargs['grab_range']
         max_objects = np.inf if 'max_objects' not in kwargs else kwargs['max_objects']
         other_agent = world_state[{"name": "RescueBot"}]
-        
+
         if object_id and get_distance(other_agent['location'], world_state[object_id]['location']) > grab_range:
             return GrabObjectResult(GrabObjectResult.NOT_IN_RANGE, False)
         else:
             return _is_possible_grab(grid_world, agent_id=agent_id, object_id=object_id, grab_range=grab_range,
-                                 max_objects=max_objects)
+                                     max_objects=max_objects)
 
     def mutate(self, grid_world, agent_id, world_state, **kwargs):
         """ Grabs an object.
@@ -818,7 +827,7 @@ class CarryObjectTogether(Action):
         other_agent.change_property("visualize_opacity", 0)
 
         # change our image 
-        
+
         object_id = None if 'object_id' not in kwargs else kwargs['object_id']
         if 'critical' in object_id and kwargs['human_name'] in agent_id:
             # change our image 
@@ -901,6 +910,7 @@ class GrabObjectResult(ActionResult):
     def __init__(self, result, succeeded):
         super().__init__(result, succeeded)
 
+
 class DropObjectTogether(Action):
     """ Drops a carried object.
         The action that can drop an :class:`matrx.objects.env_object.EnvObject`
@@ -928,7 +938,7 @@ class DropObjectTogether(Action):
         :class:`matrx.actions.move_actions.Move` actions: whenever an agent moves
         who holds objects, those objects it is holding are also moved with it.
         """
-    
+
     def __init__(self, duration_in_ticks=0):
         super().__init__(duration_in_ticks)
 
@@ -974,8 +984,9 @@ class DropObjectTogether(Action):
             obj_id = reg_ag.is_carrying[-1].obj_id
         else:
             return DropObjectResult(DropObjectResult.RESULT_NO_OBJECT, False)
-        if 'healthy' in obj_id and other_agent.properties['visualization']['opacity']!=0 or 'mild' in obj_id and other_agent.properties['visualization']['opacity']!=0:
-            return DropObjectResult(DropObjectResult.RESULT_UNKNOWN_OBJECT_TYPE, False)            
+        if 'healthy' in obj_id and other_agent.properties['visualization']['opacity'] != 0 or 'mild' in obj_id and \
+                other_agent.properties['visualization']['opacity'] != 0:
+            return DropObjectResult(DropObjectResult.RESULT_UNKNOWN_OBJECT_TYPE, False)
         else:
             return _possible_drop(grid_world, agent_id=agent_id, obj_id=obj_id, drop_range=drop_range)
 
@@ -1031,7 +1042,7 @@ class DropObjectTogether(Action):
             env_obj = reg_ag.is_carrying[-1]
         else:
             return DropObjectResult(DropObjectResult.RESULT_NO_OBJECT_CARRIED, False)
-        
+
         other_agent.change_property("location", agent.properties['location'])
 
         # make the other agent visible again 
@@ -1066,7 +1077,6 @@ class DropObjectTogether(Action):
             return DropObjectResult(DropObjectResult.RESULT_OBJECT, False)
 
         return _act_drop(grid_world, agent=reg_ag, env_obj=env_obj, drop_loc=drop_loc)
-
 
 
 def _is_possible_grab(grid_world, agent_id, object_id, grab_range, max_objects):
@@ -1163,6 +1173,7 @@ def _is_possible_grab(grid_world, agent_id, object_id, grab_range, max_objects):
             return GrabObjectResult(GrabObjectResult.RESULT_SUCCESS, True)
     else:
         return GrabObjectResult(GrabObjectResult.RESULT_UNKNOWN_OBJECT_TYPE, False)
+
 
 def _act_drop(grid_world, agent, env_obj, drop_loc):
     """ Private MATRX method.
