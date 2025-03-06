@@ -459,7 +459,7 @@ class BaselineAgent(ArtificialBrain):
                             # Tell the human to come over and be idle until human arrives
                             if not state[{'is_human_agent': True}]:
                                 if not self._waiting_for_human_to_remove_together:
-                                    self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock together. I will wait 30 seconds for you',
+                                    self._send_message('Please come to ' + str(self._door['room_name']) + ' to remove rock together. I will wait 30 seconds for you!',
                                                     'RescueBot') # Message the human only once
                                     self._waiting_for_human_to_remove_together = True 
                                     self._waiting_start_tick = state['World']['nr_ticks']  # Store the tick when waiting starts
@@ -472,7 +472,7 @@ class BaselineAgent(ArtificialBrain):
                                 self._send_message('You arrived in time! Lets remove rock blocking ' + str(self._door['room_name']) + '!',
                                                 'RescueBot')
                                 
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, 1)
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, 1, 0.1)
 
                                 # Reset flags now that removal has started
                                 self._waiting_start_tick = None
@@ -484,7 +484,7 @@ class BaselineAgent(ArtificialBrain):
                             if current_tick - self._waiting_start_tick >= 300:
                                 self._send_message(f'I’ve waited too long! I will move on to something else', 'RescueBot')
 
-                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, -1)
+                                self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, -1, 0.3)
 
                                 self._to_search.append(self._door['room_name'])
                                 self._phase = Phase.FIND_NEXT_GOAL
@@ -802,7 +802,7 @@ class BaselineAgent(ArtificialBrain):
                     self._send_message(self._goal_vic + ' not present in ' + str(self._door[
                                                                                     'room_name']) + ' because I searched the whole area without finding ' + self._goal_vic + '.',
                                       'RescueBot')
-                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1, 0.2)
                     self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name, self._send_message, -1)
                     # Remove the victim location from memory
                     self._found_victim_logs.pop(self._goal_vic, None)
@@ -841,9 +841,11 @@ class BaselineAgent(ArtificialBrain):
                     
                     # Tell the human to carry the critically injured victim together
                     if state[{'is_human_agent': True}]:
-                        self._send_message('Good to see you! Lets carry ' + str(
+                        self._send_message('You arrived in time! Lets carry ' + str(
                             self._recent_vic) + ' together! Please wait until I moved on top of ' + str(
                             self._recent_vic) + '.', 'RescueBot')
+
+                        self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name,self._send_message, 1, 0.1)
 
                         self._waiting_for_human_to_rescue_together_critically = False
                         self._rescue_together_chosen_critically = False
@@ -855,6 +857,9 @@ class BaselineAgent(ArtificialBrain):
 
                     if current_tick - self._waiting_start_tick >= 200:
                         self._send_message('I’ve waited too long! I will move on to something else.', 'RescueBot')
+
+                        self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name,self._send_message, -1, 0.4)
+
                         self._rescue = None
                         self._waiting_for_human_to_rescue_together_critically = False
                         self._rescue_together_chosen_critically = False
@@ -916,7 +921,7 @@ class BaselineAgent(ArtificialBrain):
                             self._send_message(f'I’ve waited too long! I will rescue {self._recent_vic} alone.', 'RescueBot')
                             self._send_message(f'Picking up {self._recent_vic} in {self._door["room_name"]}.', 'RescueBot')
         
-                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_WILLINGNESS, self._human_name,self._send_message, -1)
+                            self.trustService.trigger_trust_change(TrustBeliefs.RESCUE_COMPETENCE, self._human_name,self._send_message, -1, 0.2)
                             # ✅ Reset flags and proceed with solo rescue
                             self._waiting_for_human_to_rescue_together_mildly = False
                             self._rescue_together_chosen_mildly = False
@@ -1147,7 +1152,7 @@ class BaselineAgent(ArtificialBrain):
                         if area not in self._human_searched_rooms:
                             self._human_searched_rooms.append(area)
                     elif area in self._empty_rooms:
-                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1)
+                        self.trustService.trigger_trust_change(TrustBeliefs.SEARCH_COMPETENCE, self._human_name, self._send_message, -1, 0.2)
 
                     if area not in self._searched_rooms:
                         self._searched_rooms.append(area)
