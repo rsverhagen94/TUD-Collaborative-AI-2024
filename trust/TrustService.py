@@ -78,6 +78,7 @@ class TrustService:
         
     def save_trust_file(self):
         self.create_trust_file()
+        plot_users = ["Ben", "Charlie", "Alice"]
         with self.csv_file.open('w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=self.HEADER)
             writer.writeheader()
@@ -85,7 +86,9 @@ class TrustService:
                 row = {'user_id': user_id}
                 row.update({belief.name.lower(): score[belief] for belief in TrustBeliefs})
                 writer.writerow(row)
-        self.plot_trust_evolution(user_id)
+                
+        for user in plot_users:
+            self.plot_trust_evolution(user)
 
     def get_new_score_logarithmic(self, current_score, direction, weight, min_clamp=-1, max_clamp=1):
         scaling_factor = (max_clamp - abs(current_score))
@@ -196,7 +199,8 @@ class TrustService:
             return
 
         evolution_data = {belief: [] for belief in TrustBeliefs}
-        
+        all_timestamps = []
+
         with self.evolution_file.open('r', newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -208,18 +212,38 @@ class TrustService:
                     ts = datetime.fromisoformat(row['timestamp'])
                     new_score = float(row['new_score'])
                     evolution_data[belief].append((ts, new_score))
+                    all_timestamps.append(ts)
+        
+        global_t0 = min(all_timestamps)
+        
+        def format_time(sec):
+            h = int(sec // 3600)
+            m = int((sec % 3600) // 60)
+            s = int(sec % 60)
+            if h > 0:
+                return f"{h:02d}:{m:02d}:{s:02d}"
+            return f"{m:02d}:{s:02d}"
+        
+        import matplotlib.ticker as ticker
         
         plt.figure(figsize=(10, 6))
+        
         for belief, values in evolution_data.items():
             if values:
                 values.sort(key=lambda x: x[0])
                 times, scores = zip(*values)
-                plt.plot(times, scores, marker='o', label=belief.name)
+                # Elapsed time (in seconds) relative to global_t0.
+                elapsed = [(t - global_t0).total_seconds() for t in times]
+                plt.plot(elapsed, scores, marker='o', label=belief.name)
         
-        plt.xlabel("Time")
+        plt.xlabel("Time since First Change")
         plt.ylabel("Trust Score")
         plt.title(f"Trust Evolution for User {user_id}")
         plt.legend()
         plt.grid(True)
+        
+        ax = plt.gca()
+        formatter = ticker.FuncFormatter(lambda x, pos: format_time(x))
+        ax.xaxis.set_major_formatter(formatter)
+    
         plt.savefig(self.evolution_folder / f"trust_evolution_{user_id}_{self.game_timestamp}.png")
-        plt.show()
