@@ -945,11 +945,9 @@ class BaselineAgent(ArtificialBrain):
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
 
-        # I have two things to look at right now
         # receivedMessages and _send_messages
         # first just check for updated states
         if self.receivedMessages_state < len(receivedMessages):
-            # update to the state
             self.updateTrustBelief(trustBeliefs, receivedMessages, self._send_messages)
 
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
@@ -1013,6 +1011,7 @@ class BaselineAgent(ArtificialBrain):
         # message human
         human_message = receivedMessages[self.receivedMessages_state]
         self.receivedMessages_state += 1
+
         print("human said:", human_message)
 
         # message robot
@@ -1021,7 +1020,8 @@ class BaselineAgent(ArtificialBrain):
             self._send_messages_state += 1
 
             print("robot said:", robot_message)
-            # found a victim
+
+            # if robot found a victim
             if 'injured' in robot_message:
                 if 'mildly' in robot_message:
                     if 'Rescue alone' in human_message and 'far' in robot_message:
@@ -1043,5 +1043,19 @@ class BaselineAgent(ArtificialBrain):
                         # bad sign
                         trustBeliefs[self._human_name]['willingness'] -= 0.05
 
+        elif 'Found' in human_message:
+            # If the human can find victims they must be a little competent right?
+            # TODO discuss if this is useful
+            trustBeliefs[self._human_name]['competence'] += 0.05
 
+        elif 'Remove together' in human_message or 'Rescue together' in human_message:
+            # human is trying to work together
+            trustBeliefs[self._human_name]['willingness'] += 0.1
+
+        trustBeliefs[self._human_name]['willingness'] = \
+            np.clip(trustBeliefs[self._human_name]['willingness'], -1, 1)
+        trustBeliefs[self._human_name]['willingness'] = \
+            np.clip(trustBeliefs[self._human_name]['willingness'], -1, 1)
+
+        print("trustBeliefs are now:", trustBeliefs)
         return trustBeliefs
