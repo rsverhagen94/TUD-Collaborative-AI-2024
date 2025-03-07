@@ -604,7 +604,7 @@ class BaselineAgent(ArtificialBrain):
 
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
-                            print("reached tree if statement")
+
                             # Trust Check
                             decision = TreeObstacleSession.process_trust(self, info)
                             # If decision is None, we trust the human and generate the prompt
@@ -1534,6 +1534,11 @@ class BaselineAgent(ArtificialBrain):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
         '''
+
+        if PromptSession.scenario_used != Scenario.USE_TRUST_MECHANISM:
+            # Perform no change if the scenario is the same
+            return trustBeliefs
+
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         # Update the trust value
         trustBeliefs[self._human_name][task][belief] += increment 
