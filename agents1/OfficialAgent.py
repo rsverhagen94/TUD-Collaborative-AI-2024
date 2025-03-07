@@ -108,9 +108,13 @@ class BaselineAgent(ArtificialBrain):
         self._number_of_actions_yellow_victim = 0
 
         
-        # Used when Rescuing Yellow Victims
+        # Used when Rescuing Red Victims
         self._red_victim_session = None
         self._number_of_red_victims_saved = 0
+        
+        self._number_of_actions_red_victim = 0
+        self._red_victim_processed_messages = set()
+
 
         # Keep track of obstacles we've decided to skip
         self._skipped_obstacles = []
@@ -220,6 +224,7 @@ class BaselineAgent(ArtificialBrain):
                 if 'critical' in info['is_carrying'][0]['obj_id']:
                     if isinstance(self._red_victim_session, PromptSession):
                         self._number_of_red_victims_saved += 1
+                        self._number_of_actions_red_victim += 1
                         self._red_victim_session.delete_red_victim_session()
 
                 # If victim is being carried, add to collected victims memory
@@ -1121,7 +1126,8 @@ class BaselineAgent(ArtificialBrain):
                         self._yellow_victim_session.robot_continue_rescue(self._number_of_actions_yellow_victim, True)
                         
                     elif isinstance(self._red_victim_session, RedVictimSession):
-                        self._red_victim_session.robot_continue_rescue()
+                        self._number_of_actions_red_victim += 1
+                        self._red_victim_session.robot_continue_rescue(self._number_of_actions_red_victim, True)
                     
                     self._answered = True
                     self._waiting = False
@@ -1136,7 +1142,7 @@ class BaselineAgent(ArtificialBrain):
                     if isinstance(self._yellow_victim_session, PromptSession):
                         self._yellow_victim_session.wait(self._number_of_actions_yellow_victim, True)
                     if isinstance(self._red_victim_session, PromptSession):
-                        self._red_victim_session.wait()
+                        self._red_victim_session.wait(self._number_of_actions_red_victim, True)
                     return None, {}
 
 
@@ -1208,7 +1214,7 @@ class BaselineAgent(ArtificialBrain):
 
                         if 'critical' in info['obj_id']:
                             if isinstance(self._red_victim_session, PromptSession):
-                                timeout_encountered = self._red_victim_session.wait()
+                                timeout_encountered = self._red_victim_session.wait(self._number_of_actions_red_victim, True)
                                 if timeout_encountered == 1:
                                     return None, {}
                 
@@ -1279,7 +1285,7 @@ class BaselineAgent(ArtificialBrain):
                 if 'critical' in self._goal_vic:
                     if isinstance(self._red_victim_session, RedVictimSession):
                         # This finalizes the rescue, includes time-based trust update
-                        self._red_victim_session.complete_rescue_together()
+                        self._red_victim_session.complete_rescue_together(self._number_of_actions_red_victim, True)
                         self._red_victim_session.delete_red_victim_session()
                     self._send_message(f"Delivered {self._goal_vic} (critical) at the drop zone.", "RescueBot")
                 
@@ -1380,7 +1386,27 @@ class BaselineAgent(ArtificialBrain):
                         self._yellow_victim_session.delete_yellow_victim_session(False)
 
                         self._yellow_victim_processed_messages.add(msg)
+                    
+                    
+                    if msg not in self._red_victim_processed_messages and 'critical' in foundVic:   
+                        self._red_victim_session = RedVictimSession(self, None, 100)
                         
+                        self._number_of_actions_red_victim += 1
+                        
+                        # Human claimed to have found a new red victim
+                        if foundVic not in self._found_victims:
+                            self._red_victim_session.human_found_alone_truth(self._number_of_actions_red_victim, True)
+                        
+                        # Human claimed to have found a new red victim that was already found
+                        if foundVic in self._found_victims:
+                            self._red_victim_session.human_found_alone_lie(self._number_of_actions_red_victim, True)
+                        
+                        self._red_victim_session.delete_red_victim_session(False)
+
+                        self._red_victim_processed_messages.add(msg)
+                        
+                        
+                            
                         
                     # Add the victim and its location to memory
                     if foundVic not in self._found_victims:

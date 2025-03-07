@@ -2,6 +2,8 @@ import enum
 from agents1.eventUtils import PromptSession
 
 class RockObstacleSession(PromptSession):
+    count_actions = 0
+    
     class RockObstaclePhase(enum.Enum):
         WAITING_RESPONSE = 0
         WAITING_HUMAN = 1
