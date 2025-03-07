@@ -54,6 +54,7 @@ class BaselineAgent(ArtificialBrain):
         self._trust_check_passed_for_removal = None  
         self._trust_check_passed_for_rescue = None 
         self._going_to_help_human_remove = None
+        self._waiting_for_human_to_start_removing = None
         self._tick = None
         self._slowdown = slowdown
         self._condition = condition
@@ -405,6 +406,7 @@ class BaselineAgent(ArtificialBrain):
 
                 for info in state.values():
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance']:
+                        objects.append(info)
                         obstacle_found = True
                         break
 
@@ -422,13 +424,31 @@ class BaselineAgent(ArtificialBrain):
 
                 if obstacle_found and self._going_to_help_human_remove:
                     self._send_message('I confirm there is an obstacle at ' + str(self._door['room_name']) + 
-                    '. You are trustworthy!','RescueBot')
+                    '. Please initiate the removal procedure. I will help you!','RescueBot')
+
+                    # Starting waiting for the human
+                    self._waiting_for_human_to_start_removing = True
+                    self._going_to_help_human_remove = False
                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, 1)
-                    self._going_to_help_human_remove = False
+
+                    return None, {}
+            
+                # Keep waiting for human to initiate removal procedure, after he asked for help and I arrived.
+                if self._waiting_for_human_to_start_removing:
+                    # If no obstacles are blocking the entrance, enter the area
+                    if len(objects) == 0:
+                        self._answered = False
+                        self._remove = False
+                        self._waiting = False
+                        self._waiting_for_human_to_start_removing = False
+                        self._phase = Phase.ENTER_ROOM
+                    return None, {}
+                    
 
                 # Identify which obstacle is blocking the entrance
                 for info in state.values():
+
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info[
                         'obj_id']:
                         objects.append(info)
@@ -689,6 +709,10 @@ class BaselineAgent(ArtificialBrain):
 
             if Phase.ENTER_ROOM == self._phase:
                 self._answered = False
+
+                if self._waiting_for_human_to_start_removing:
+                    self._waiting_for_human_to_start_removing = False
+                    self._going_to_help_human_remove = False
 
                 # Check if the target victim has been rescued by the human, and switch to finding the next goal
                 if self._goal_vic in self._collected_victims:
