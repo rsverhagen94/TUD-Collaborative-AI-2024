@@ -1579,6 +1579,11 @@ class BaselineAgent(ArtificialBrain):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member. 
         '''
+
+        if PromptSession.scenario_used != Scenario.USE_TRUST_MECHANISM:
+            # Perform no change if the scenario is the same
+            return trustBeliefs
+
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         # Update the trust value
         trustBeliefs[self._human_name][task][belief] += increment 
