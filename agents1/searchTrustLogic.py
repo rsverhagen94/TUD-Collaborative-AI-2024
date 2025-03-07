@@ -1,18 +1,14 @@
 import numpy as np
 import random
 
-def add_room_based_on_trust(agent, task, room_name):
+def add_room_based_on_trust(agent, competence, room_name):
     """
     Decides whether to add a room to the agent's searched list based on human trust.
 
     :param agent: The instance of the BaselineAgent (or OfficialAgent)
-    :param task: The task name (e.g., 'search', 'rescue_yellow', etc.)
+    :param competence: The competence of the human in searching the room, finding victims or collecting victims.
     :param room_name: The name of the room being evaluated
     """
-
-    # Fetch the human’s competence level for this task
-    competence = agent._trustBeliefs[agent._human_name][task]['competence']
-
     # Scale competence to probability: (-1 to 1) -> (0 to 1)
     prob = (competence + 1) * 0.5  # Convert to probability scale (0% to 100%)
     
@@ -43,8 +39,8 @@ def calculate_increment_with_confidence(number_of_actions, increment_value, conf
     """
     confidence = calculate_confidence(number_of_actions, confidence_constant)
     return (1 - confidence) * increment_value
-    
-    
+
+
 def update_search_willingness(agent, use_confidence=False):
     """
     Update the search willingness after the agent sends a room to the human.

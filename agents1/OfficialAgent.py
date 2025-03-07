@@ -97,6 +97,7 @@ class BaselineAgent(ArtificialBrain):
         self._door = {'room_name': None, 'location': None}
         self._all_room_tiles = None
         self._search_willingness_start_value = None
+        self._search_competence_start_value = None
 
         # Used for managing prompts
         self._current_prompt = None
@@ -167,11 +168,11 @@ class BaselineAgent(ArtificialBrain):
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
 
-
         # Initialize and update trust beliefs for team members
         if self._trustBeliefs == None:
             self._trustBeliefs = self._loadBelief(self._team_members, self._folder)
             self._search_willingness_start_value = self._trustBeliefs[self._human_name]['search']['willingness']
+            self._search_competence_start_value = self._trustBeliefs[self._human_name]['search']['competence'] # We will use this value to compute the probability of adding searched rooms
 
         # Initialize random values for each task if the random baseline is used
         if PromptSession.scenario_used == Scenario.RANDOM_TRUST:
@@ -389,6 +390,7 @@ class BaselineAgent(ArtificialBrain):
                     self._re_searching = True
                     self._not_penalizable = list(self._searched_rooms) # Reset to agent searched rooms
                     self._search_willingness_start_value = self._trustBeliefs[self._human_name]['search']['willingness'] # Reset the start value for next search round
+                    self._search_competence_start_value = self._trustBeliefs[self._human_name]['search']['competence']
                     self._send_message('Going to re-search all areas.', 'RescueBot')
                     self._phase = Phase.FIND_NEXT_GOAL
                 # If there are still areas to search, define which one to search next
@@ -1320,7 +1322,7 @@ class BaselineAgent(ArtificialBrain):
                 if msg.startswith("Search:") and msg not in self._consumed_messages:
                     area = 'area ' + msg.split()[-1]
                     if area not in self._searched_rooms:
-                        add_room_based_on_trust(self, "search", area)
+                        add_room_based_on_trust(self, self._search_competence_start_value, area)
                     # always add the area to the memory of searched areas by human for competence evaluation later
                     if area in self._searched_rooms_claimed_by_human or area in self._searched_rooms_by_agent:
                         penalize_search_willingness_for_sending_rooms_already_searched(self, area, use_confidence=True)
@@ -1346,9 +1348,11 @@ class BaselineAgent(ArtificialBrain):
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
                         if 'mild' in foundVic:
-                            add_room_based_on_trust(self, "rescue_yellow", loc)
+                            rescue_yellow_competence = self._trustBeliefs[self._human_name]['rescue_yellow']['competence']
+                            add_room_based_on_trust(self, rescue_yellow_competence, loc)
                         else:
-                            add_room_based_on_trust(self, "rescue_red", loc)
+                            rescue_red_competence = self._trustBeliefs[self._human_name]['rescue_red']['competence']
+                            add_room_based_on_trust(self, rescue_red_competence, loc)
                     
                     
                     if msg not in self._yellow_victim_processed_messages and 'mild' in foundVic:   
@@ -1397,7 +1401,8 @@ class BaselineAgent(ArtificialBrain):
 
                     # Add the area to the memory of searched areas
                     if loc not in self._searched_rooms:
-                        add_room_based_on_trust(self, "rescue_yellow", loc)
+                        rescue_yellow_competence = self._trustBeliefs[self._human_name]['rescue_yellow']['competence']
+                        add_room_based_on_trust(self, rescue_yellow_competence, loc)
                     
                     if msg not in self._yellow_victim_processed_messages and 'mild' in collectVic:   
                         self._yellow_victim_session = YellowVictimSession(self, None, 100)
