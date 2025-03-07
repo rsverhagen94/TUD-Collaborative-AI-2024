@@ -20,8 +20,14 @@ def output_logger(fld):
     # Calculate the unique human and agent actions
     unique_agent_actions = []
     unique_human_actions = []
+    objects_removed_together = 0
+    objects_removed_alone = 0
+    victims_rescued_together = 0
+    victims_rescued_alone = 0
+
     with open(action_file) as csvfile:
         reader = csv.reader(csvfile, delimiter=';', quotechar="'")
+        prev_row = [None,None,None,None,None,None]
         for row in reader:
             if action_header==[]:
                 action_header=row
@@ -33,6 +39,30 @@ def output_logger(fld):
             if row[4] == 'RemoveObjectTogether' or row[4] == 'CarryObjectTogether' or row[4] == 'DropObjectTogether':
                 if row[4:6] not in unique_agent_actions:
                     unique_agent_actions.append(row[4:6])
+
+            if row[2] == 'RemoveObjectTogether' and prev_row[2] != 'RemoveObjectTogether':
+                objects_removed_together += 1
+            if row[4] == 'RemoveObjectTogether' and prev_row[4] != 'RemoveObjectTogether':
+                objects_removed_together += 1
+
+            if row[2] == 'RemoveObject' and prev_row[2] != 'RemoveObject':
+                objects_removed_alone += 1
+            if row[4] == 'RemoveObject' and prev_row[4] != 'RemoveObject':
+                objects_removed_alone += 1
+
+            # If the score increased, we must've rescued a victim
+            if row[2] == 'DropObjectTogether' and prev_row[0] < row[0]:
+                victims_rescued_together += 1
+            if row[4] == 'DropObjectTogether' and prev_row[0] < row[0]:
+                victims_rescued_together += 1
+
+            if row[2] == 'Drop' and prev_row[0] < row[0]:
+                victims_rescued_alone += 1
+            if row[4] == 'Drop' and prev_row[0] < row[0]:
+                victims_rescued_alone += 1
+
+            prev_row = row
+
             res = {action_header[i]: row[i] for i in range(len(action_header))}
             action_contents.append(res)
 
@@ -54,8 +84,12 @@ def output_logger(fld):
     print("Saving output...")
     with open(os.path.join(recent_dir,'world_1/output.csv'),mode='w') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        csv_writer.writerow(['completeness','score','no_ticks','agent_actions','human_actions'])
-        csv_writer.writerow([completeness,score,no_ticks,len(unique_agent_actions),len(unique_human_actions)])
+        csv_writer.writerow(['completeness','score','no_ticks','agent_actions','human_actions','objects_removed_alone',
+                             'objects_removed_together','victims_rescued_alone','victims_rescued_together'])
+        csv_writer.writerow([completeness,score,no_ticks,len(unique_agent_actions),len(unique_human_actions),
+                             objects_removed_alone,objects_removed_together,victims_rescued_alone,
+                             victims_rescued_together
+                             ])
         
     # Update the trust belief values
     trust_file_path = fld + '/beliefs/allTrustBeliefs.csv'
