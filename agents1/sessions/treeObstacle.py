@@ -2,6 +2,7 @@ import enum
 from agents1.eventUtils import PromptSession, Scenario
 
 class TreeObstacleSession(PromptSession):
+    count = 0  # Use to calculate confidence
     def __init__(self, bot, info, ttl=100):
         super().__init__(bot, info, ttl)
 
@@ -20,6 +21,19 @@ class TreeObstacleSession(PromptSession):
 
             return RemoveObject.__name__, {'object_id': info['obj_id']}
 
+        VERY_LOW_COMPETENCE_THRESHOLD = -0.2
+        VERY_LOW_WILLINGNESS_THRESHOLD = -0.3
+        if (bot._trustBeliefs[bot._human_name]['remove_tree']['competence'] > VERY_LOW_COMPETENCE_THRESHOLD or
+                bot._trustBeliefs[bot._human_name]['remove_tree']['willingness'] > VERY_LOW_WILLINGNESS_THRESHOLD):
+            bot._answered = True
+            bot._waiting = False
+            bot._send_message('Removing tree blocking ' + str(bot._door['room_name']) + '.',
+                              'RescueBot')
+            from agents1.OfficialAgent import Phase, RemoveObject
+            bot._phase = Phase.ENTER_ROOM
+            bot._remove = False
+
+            return RemoveObject.__name__, {'object_id': info['obj_id']}
 
         LOW_COMPETENCE_THRESHOLD = 0.1
         LOW_WILLINGNESS_THRESHOLD = 0.1
@@ -77,3 +91,13 @@ class TreeObstacleSession(PromptSession):
         return RemoveObject.__name__, {'object_id': self.info['obj_id']}
 
 #TODO: Implement Confidence Level
+    def increment_values(self, task, willingness, competence, bot):
+        TreeObstacleSession.count += 1
+        print("Confidence:", self.get_confidence())
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "willingness",
+                         self.get_confidence() * willingness)
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "competence",
+                         self.get_confidence() * competence)
+
+    def get_confidence(self):
+        return min(1.0, max(0.0, TreeObstacleSession.count / 2))
