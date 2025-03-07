@@ -37,7 +37,7 @@ class RedVictimSession(PromptSession):
             # Too large a deviation => negative signal
             return -1
 
-    def modify_competence_by_time(self, actual_time, estimated_time):
+    def modify_competence_by_time(self, actual_time, estimated_time, number_of_actions=0, use_confidence=False):
         """
         Compare actual_time to estimated_time and do a trust update:
           - If actual_time is near or below estimate => raise competence/willingness
@@ -48,28 +48,42 @@ class RedVictimSession(PromptSession):
             # Good performance => positive
             competence_change = 0.1 * time_scale
             willingness_change = 0.05 * time_scale
+            
+            if use_confidence:
+                competence_change = self.calculate_increment_with_confidence(number_of_actions, competence_change)
+                willingness_change = self.calculate_increment_with_confidence(number_of_actions, willingness_change)
+                
             self.increment_values("rescue_red", willingness_change, competence_change, self.bot)
         else:
             # Very late => negative
-            self.increment_values("rescue_red", -0.05, -0.1, self.bot)
+            competence_change = -0.1
+            willingness_change = -0.05
+            
+            if use_confidence:
+                competence_change = self.calculate_increment_with_confidence(number_of_actions, competence_change)
+                willingness_change = self.calculate_increment_with_confidence(number_of_actions, willingness_change)
+                
+            self.increment_values("rescue_red", willingness_change, competence_change, self.bot)
 
-    def robot_rescue_together(self, ttl=200):
+    def robot_rescue_together(self, ttl=200, number_of_actions=0, use_confidence=False):
         """
         Called when the user (or agent) chooses "Rescue" for a critically injured Red Victim.
-
-        This sets a short TTL and transitions to WAITING_HUMAN. 
-        If the user never physically arrives before time runs out, we penalize.
         """
         print("Robot Rescue Together heard.")
         # Slight willingness bump for choosing "Rescue"
-        self.increment_values("rescue_red", 0.15, 0, self.bot)
+        
+        increment_value = 0.15
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_red", increment_value, 0, self.bot)
 
-        # Identify the victim we’re rescuing
+        # Store the victim we're rescuing - critically important
         if self.bot._recent_vic is not None:
             self._goal_vic = self.bot._recent_vic
         self.bot._goal_vic = self._goal_vic
 
-        # Identify the drop zone from the agent’s _remaining dictionary, if any
+        # Identify the drop zone from the agent's _remaining dictionary, if any
         if self._goal_vic in getattr(self.bot, "_remaining", {}):
             self._goal_loc = self.bot._remaining[self._goal_vic]
             self.bot._goal_loc = self._goal_loc
@@ -80,7 +94,6 @@ class RedVictimSession(PromptSession):
         self.rescue_start_time = time.time()
 
         # Optionally store the robot's current location to guess an ETA
-        # If the agent’s code can track self.agent_properties["location"], do it here.
         my_loc = None
         if (
             hasattr(self.bot, "agent_properties") and
@@ -97,54 +110,55 @@ class RedVictimSession(PromptSession):
             self.estimated_delivery_time = self.estimate_delivery_time(self.pickup_location, self._goal_loc)
             print(f"Estimated delivery time: {self.estimated_delivery_time:.2f} seconds")
 
-        print(f"Goal victim: {self._goal_vic}")
-        print(f"Goal location: {self._goal_loc}")
-        print(f"Pickup location: {self.pickup_location}")
-
-         # Send a message to remind the user they need to arrive within a time limit
+        # Send a message to remind the user they need to arrive within a time limit
         self.bot._send_message(
             f"You've chosen to rescue {self._goal_vic}. You have 20 seconds to arrive at my location to help carry the victim.",
             "RescueBot"
         )
 
-    def robot_continue_rescue(self):
+    def robot_continue_rescue(self, number_of_actions=0, use_confidence=False):
         """
         Called if the human or agent decides "Continue," i.e. skip this Red Victim for now.
         That implies a willingness penalty for ignoring a severely injured victim.
         """
         print("Robot Continue Rescue heard.")
-        self.increment_values("rescue_red", -0.15, 0, self.bot)
+        
+        increment_value = -0.15
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_red", increment_value, 0, self.bot)
         self.delete_self()
 
-    def wait(self):
+    def wait(self, number_of_actions=0, use_confidence=False):
         """
         Called each tick. Decrement TTL and handle transitions.
         """
         # Update local tracking variables if needed
-        if self.bot._recent_vic is not None and self.bot._goal_vic is None:
+        if self.bot._recent_vic is not None and self._goal_vic is None:
             self._goal_vic = self.bot._recent_vic
         if self.bot._door['room_name'] is not None and self.room_name is None:
             self.room_name = self.bot._door['room_name']
-            
+
         # Print status every 5 ticks for debugging
         if self.ttl % 5 == 0 and self.ttl > 0:
             print(f"Red victim session TTL: {self.ttl}")
-        
+
         if self.ttl > 0:
             self.ttl -= 1
             if self.ttl == 0:
-                return self.on_timeout()
+                return self.on_timeout(number_of_actions, use_confidence)
                 
         # If we are waiting for the human physically after they said "Rescue"
         if self.currPhase == self.RedVictimPhase.WAITING_HUMAN:
             if self.check_human_proximity():
-                self.human_showed_up()
+                self.human_showed_up(number_of_actions, use_confidence)
                 self.currPhase = self.RedVictimPhase.IN_PROGRESS
                 # Once the user is here, no further timeouts for arrival
                 self.ttl = -1
                 return 0
-                
-        # If we're still in WAITING_RESPONSE phase (no response from human yet)
+              
+        # Only show warning message if we're waiting for initial response
         if self.currPhase == self.RedVictimPhase.WAITING_RESPONSE:
             # When ttl gets low, display a warning message
             if self.ttl == 50:  # About 10 seconds left
@@ -154,15 +168,22 @@ class RedVictimSession(PromptSession):
                 )
         return 0
 
-    def on_timeout(self):
+    def on_timeout(self, number_of_actions=0, use_confidence=False):
         """
         Called if we run out of time in WAITING_RESPONSE or WAITING_HUMAN.
-        This yields bigger penalties for ignoring or failing to arrive for a Red Victim.
-        """
+        """        
         if self.currPhase == self.RedVictimPhase.WAITING_RESPONSE:
             print("Timed out waiting for Red Victim decision!")
+
+            willingness_increment = -0.2
+            competence_increment = -0.1
+            
+            if use_confidence:
+                willingness_increment = self.calculate_increment_with_confidence(number_of_actions, willingness_increment)
+                competence_increment = self.calculate_increment_with_confidence(number_of_actions, competence_increment)
+                
             # Larger penalty because user did not answer at all
-            self.increment_values("rescue_red", -0.2, -0.1, self.bot)
+            self.increment_values("rescue_red", willingness_increment, competence_increment, self.bot)
             self.bot._send_message(
                 f"No response received. Continuing to search without rescuing {self.bot._recent_vic} in {self.bot._door['room_name']}.",
                 "RescueBot"
@@ -189,9 +210,15 @@ class RedVictimSession(PromptSession):
             
         elif self.currPhase == self.RedVictimPhase.WAITING_HUMAN:
             print("Timed out waiting for human to arrive! Human did not show up in time.")
-            # Slightly smaller penalty than ignoring from the start,
-            # because user at least said "Rescue" but never came
-            self.increment_values("rescue_red", -0.1, -0.05, self.bot)
+            willingness_increment = -0.1
+            competence_increment = -0.05
+            
+            if use_confidence:
+                willingness_increment = self.calculate_increment_with_confidence(number_of_actions, willingness_increment)
+                competence_increment = self.calculate_increment_with_confidence(number_of_actions, competence_increment)
+                
+            # Slightly smaller penalty than ignoring from the start
+            self.increment_values("rescue_red", willingness_increment, competence_increment, self.bot)
             self.bot._send_message(
                 f"You did not arrive in time to rescue {self._goal_vic} in {self.room_name}. Continuing to search without rescuing this victim.",
                 "RescueBot"
@@ -237,19 +264,27 @@ class RedVictimSession(PromptSession):
                     return True
         return False
 
-    def human_showed_up(self):
+    def human_showed_up(self, number_of_actions=0, use_confidence=False):
         """
         Called when the human arrives at the victim location.
         Updates trust values positively.
         """
         # Human showed up to help as promised
-        self.increment_values("rescue_red", 0.05, 0.1, self.bot)
+        
+        willingness_increment = 0.05
+        competence_increment = 0.1
+        
+        if use_confidence:
+            willingness_increment = self.calculate_increment_with_confidence(number_of_actions, willingness_increment)
+            competence_increment = self.calculate_increment_with_confidence(number_of_actions, competence_increment)
+            
+        self.increment_values("rescue_red", willingness_increment, competence_increment, self.bot)
         self.bot._send_message(
             f"Thank you for coming to help rescue {self._goal_vic}! Let's work together.",
             "RescueBot"
         )
 
-    def complete_rescue_together(self):
+    def complete_rescue_together(self, number_of_actions=0, use_confidence=False):
         """
         Called once the Red Victim is successfully dropped off at the drop zone.
         We finalize rescue time measurements and do final trust updates.
@@ -257,12 +292,20 @@ class RedVictimSession(PromptSession):
         if self.rescue_start_time:
             total_time = time.time() - self.rescue_start_time
             if self.estimated_delivery_time:
-                self.modify_competence_by_time(total_time, self.estimated_delivery_time)
+                self.modify_competence_by_time(total_time, self.estimated_delivery_time, number_of_actions, use_confidence)
             print(f"Total rescue time for Red Victim: {total_time:.2f} seconds")
 
         print("Completed rescue of Red Victim together!")
+        
+        willingness_increment = 0.1
+        competence_increment = 0.2
+        
+        if use_confidence:
+            willingness_increment = self.calculate_increment_with_confidence(number_of_actions, willingness_increment)
+            competence_increment = self.calculate_increment_with_confidence(number_of_actions, competence_increment)
+            
         # Increase willingness & competence further now that rescue is done
-        self.increment_values("rescue_red", 0.1, 0.2, self.bot)
+        self.increment_values("rescue_red", willingness_increment, competence_increment, self.bot)
         self.delete_self()
 
     def delete_red_victim_session(self):
