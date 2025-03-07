@@ -1150,18 +1150,17 @@ class BaselineAgent(ArtificialBrain):
                     trustfile_header = row
                     continue
                 # Retrieve trust values
-                if row and row[0] == self._human_name:
+                if any(row):
                     name = row[0]
                     trustBeliefs[name] = {
-                        attribute: float(row[i])
+                        attribute: float(row[i+1])
                         for i, attribute in enumerate(self._possible_attributes)
                     }
-                # Initialize default trust values
-                if row and row[0] != self._human_name:
-                    trustBeliefs[self._human_name] = {
-                        attribute: float(default)
-                        for attribute, default in zip(self._possible_attributes, self._attribute_defaults)
-                    }
+            if self._human_name not in trustBeliefs:
+                trustBeliefs[self._human_name] = {
+                    attribute: float(default)
+                    for attribute, default in zip(self._possible_attributes, self._attribute_defaults)
+                }
 
         return trustBeliefs
 
