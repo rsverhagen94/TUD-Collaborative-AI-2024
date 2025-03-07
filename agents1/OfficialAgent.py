@@ -608,7 +608,7 @@ class BaselineAgent(ArtificialBrain):
 
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
-                            print("reached tree if statement")
+
                             # Trust Check
                             decision = TreeObstacleSession.process_trust(self, info)
                             # If decision is None, we trust the human and generate the prompt
