@@ -978,8 +978,25 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
     
-    def _check_user_trust(self, trustBeliefs):
-        return trustBeliefs[self._human_name]['competence'] >= 0.6 and trustBeliefs[self._human_name]['willingness'] >= 0.6
+    def _check_user_trust(self, trustBeliefs, trustMethod="both"):
+        competence = trustBeliefs[self._human_name]['competence']
+        willingness = trustBeliefs[self._human_name]['willingness']
+
+        # normalize from -1/1 to 0/1
+        competence_normalized = (competence + 1) / 2
+        willingness_normalized = (willingness + 1) / 2
+
+        if trustMethod == "competence":
+            trust_probability = competence_normalized
+        elif trustMethod == "willingness":
+            trust_probability = willingness_normalized
+        else:
+            trust_probability = (competence_normalized + willingness_normalized) / 2
+
+        rand = random.random()
+        if rand < trust_probability:
+            return True
+        return False
         
 
     def _send_message(self, mssg, sender):
