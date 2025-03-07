@@ -1,3 +1,4 @@
+import os
 import warnings
 import copy
 import numpy as np
@@ -230,6 +231,11 @@ class HumanBrain(HumanAgentBrain):
         # associated with that key
         pressed_keys = user_input[-1]
         action = self.key_action_map[pressed_keys]
+
+        from worlds1.WorldBuilder import GenerateOutput
+        if action == GenerateOutput.__name__:
+            from loggers.OutputLogger import output_logger
+            output_logger(fld=os.getcwd())
 
         # if the user chose a grab together action, choose an object within grab_range
         if action == CarryObjectTogether.__name__:
