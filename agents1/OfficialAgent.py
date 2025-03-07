@@ -256,12 +256,12 @@ class BaselineAgent(ArtificialBrain):
                         self._goal_loc = remaining[vic]
 
                         trust = self._decide((
-                            trustBeliefs['competency_rescue_mildlyInjured'] +
-                            trustBeliefs['competency arrival'] +
-                            trustBeliefs['willingness response']
+                            trustBeliefs[self._human_name]['competency_rescue_mildlyInjured'] +
+                            trustBeliefs[self._human_name]['competency_arrival'] +
+                            trustBeliefs[self._human_name]['willingness_response']
                         ) / 3.0)
 
-                        # Rescue together when victim is critical or when the human is weak and the victim is mildly injured
+                        # Rescue together when victim is critical or when we trust the human with mildly injured
                         if 'critical' in vic or trust:
                             self._rescue = 'together'
                         else:
@@ -428,6 +428,8 @@ class BaselineAgent(ArtificialBrain):
                     self._phase = Phase.REMOVE_OBSTACLE_IF_NEEDED
 
             if Phase.REMOVE_OBSTACLE_IF_NEEDED == self._phase:
+                trustBeliefs = self._loadBelief(self._team_members, self._folder)
+
                 objects = []
                 agent_location = state[self.agent_id]['location']
                 # Identify which obstacle is blocking the entrance
@@ -558,9 +560,13 @@ class BaselineAgent(ArtificialBrain):
                             # Add area to the to do list
                             self._to_search.append(self._door['room_name'])
                             self._phase = Phase.FIND_NEXT_GOAL
-                        # Remove the obstacle alone if the human decides so
-                        if self.received_messages_content and self.received_messages_content[
-                            -1] == 'Remove alone' and not self._remove:
+
+                        # Decide whether to trust the human that they will actually come help
+                        alone_because_no_trust = self.received_messages_content and self.received_messages_content[
+                            -1] == 'Remove together' and self._decide(trustBeliefs[self._human_name]['competency_arrival'])
+
+                        if (self.received_messages_content and self.received_messages_content[
+                            -1] == 'Remove alone' and not self._remove) or alone_because_no_trust:
                             self._answered = True
                             self._waiting = False
                             self._send_message('Removing stones blocking ' + str(self._door['room_name']) + '.',
@@ -1113,13 +1119,13 @@ class BaselineAgent(ArtificialBrain):
                 if row and row[0] == self._human_name:
                     name = row[0]
                     trustBeliefs[name] = {
-                        attribute: row[i]
+                        attribute: float(row[i])
                         for i, attribute in enumerate(self._possible_attributes)
                     }
                 # Initialize default trust values
                 if row and row[0] != self._human_name:
                     trustBeliefs[self._human_name] = {
-                        attribute: default
+                        attribute: float(default)
                         for attribute, default in zip(self._possible_attributes, self._attribute_defaults)
                     }
 
@@ -1148,7 +1154,6 @@ class BaselineAgent(ArtificialBrain):
     '''
     def _decide(self, trust):
         rand = (random.random() * 2 - 1)
-        print(rand, trust)
         return rand < trust
 
     def _send_message(self, mssg, sender):
