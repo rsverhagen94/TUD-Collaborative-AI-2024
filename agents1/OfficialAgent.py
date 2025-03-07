@@ -1042,11 +1042,14 @@ class BaselineAgent(ArtificialBrain):
 
                     # If the human isn't currently visible, remind them to come closer
                     if not state[{'is_human_agent': True}]:
+                        self._red_victim_session.robot_rescue_together()
+
                         self._send_message(
                             f"Please come to {self._door['room_name']} to carry {self._recent_vic} together.",
                             "RescueBot"
                         )
                     else:
+                        self._red_victim_session.robot_rescue_together()
                         self._send_message(
                             f"Lets carry {self._recent_vic} together! Please wait until I'm on top of {self._recent_vic}.",
                             "RescueBot"
