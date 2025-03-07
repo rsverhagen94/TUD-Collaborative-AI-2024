@@ -89,6 +89,13 @@ class BaselineAgent(ArtificialBrain):
         self._received_messages = []
         self._moving = False
 
+        # Possible baselines
+        # -1 NEVER-TRUST
+        # 1 ALWAYS-TRUST
+        # 0 RANDOM-TRUST
+        # None - adaptive mechanism
+        self._baseline = None
+
         # Custom class attributes
         self._competency_additions = []
         self._willingness_additions = []
@@ -1108,6 +1115,16 @@ class BaselineAgent(ArtificialBrain):
         default = 0.5
         trustfile_header = []
         trustfile_contents = []
+
+        # When a baseline is specified, fix all the beliefs
+        if self._baseline:
+            trustBeliefs[self._human_name] = {
+                attribute: float(self._baseline)
+                for i, attribute in enumerate(self._possible_attributes)
+            }
+
+            return trustBeliefs
+        
         # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
         with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
             reader = csv.reader(csvfile, delimiter=';', quotechar="'")
@@ -1135,6 +1152,11 @@ class BaselineAgent(ArtificialBrain):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
+
+        # Don't change the values if baseline is specified
+        if self._baseline:
+            return
+
         # Update the trust value based on for example the received messages
 
         for addition in self._competency_additions + self._willingness_additions:
