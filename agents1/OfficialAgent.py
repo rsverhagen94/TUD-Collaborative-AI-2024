@@ -1369,8 +1369,7 @@ class BaselineAgent(ArtificialBrain):
 
                         self._red_victim_processed_messages.add(msg)
                         
-                        
-                            
+                             
                         
                     # Add the victim and its location to memory
                     if foundVic not in self._found_victims:
