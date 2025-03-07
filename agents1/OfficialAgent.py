@@ -53,6 +53,7 @@ class BaselineAgent(ArtificialBrain):
         self._waiting_for_human_to_remove_together = False  # Tracks if we are waiting for human to arrive
         self._trust_check_passed_for_removal = None  
         self._trust_check_passed_for_rescue = None 
+        self._going_to_help_human_remove = None
         self._tick = None
         self._slowdown = slowdown
         self._condition = condition
@@ -407,7 +408,7 @@ class BaselineAgent(ArtificialBrain):
                         obstacle_found = True
                         break
 
-                if not obstacle_found and self._remove and not self._waiting:
+                if not obstacle_found and self._going_to_help_human_remove:
                     self._send_message(
                         'No obstacles found in ' + str(self._door[
                                                            'room_name']) + ' despite your request for help.',
@@ -416,7 +417,15 @@ class BaselineAgent(ArtificialBrain):
                     self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, -1)
                     self._remove = False
                     self._waiting = False
+                    self._going_to_help_human_remove = False
                     self._phase = Phase.ENTER_ROOM
+
+                if obstacle_found and self._going_to_help_human_remove:
+                    self._send_message('I confirm there is an obstacle at ' + str(self._door['room_name']) + 
+                    '. You are trustworthy!','RescueBot')
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_WILLINGNESS, self._human_name, self._send_message, 1)
+                    self.trustService.trigger_trust_change(TrustBeliefs.REMOVE_COMPETENCE, self._human_name,self._send_message, 1)
+                    self._going_to_help_human_remove = False
 
                 # Identify which obstacle is blocking the entrance
                 for info in state.values():
@@ -1226,6 +1235,7 @@ class BaselineAgent(ArtificialBrain):
                             'Moving to ' + str(self._door['room_name']) + ' to help you remove an obstacle.',
                             'RescueBot')
                         # Plan the path to the relevant area
+                        self._going_to_help_human_remove = True
                         self._phase = Phase.PLAN_PATH_TO_ROOM
                     # Come over to help after dropping a victim that is currently being carried by the agent
                     else:
