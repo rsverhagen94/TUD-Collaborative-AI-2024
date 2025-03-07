@@ -27,47 +27,114 @@ class YellowVictimSession(PromptSession):
         self.recent_vic = None
         self.room_name = None
 
+
+
     # Factors to adjust Competence and Willingness
     # Robot found a yellow victim
-    def robot_continue_rescue(self):
+    def robot_continue_rescue(self, number_of_actions = 0, use_confidence = False):
         print("Robot Continue Rescue heard")
-        self.increment_values("rescue_yellow", -0.1, 0, self.bot)
+        
+        increment_value = -0.1   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+        
+        self.increment_values("rescue_yellow", increment_value, 0, self.bot)
         self.delete_self()
         
-    def robot_rescue_alone(self):
+    def robot_rescue_alone(self, number_of_actions = 0, use_confidence = False):
         print("Robot Rescue Alone heard")
-        self.increment_values("rescue_yellow", 0.1, 0, self.bot)
+        
+        increment_value = 0.1   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", increment_value, 0, self.bot)
         self.delete_self()
 
-    def robot_rescue_together(self, ttl=50):
+    def robot_rescue_together(self, ttl=50, number_of_actions = 0, use_confidence = False):
         print("Robot Rescue Together heard")
-        self.increment_values("rescue_yellow", 0.15, 0, self.bot)
+        
+        increment_value = 0.15   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", increment_value, 0, self.bot)
         # Wait for the human
         self.currPhase = self.YellowVictimPhase.WAITING_HUMAN
         # Reset ttl
         self.ttl = ttl
   
     
-    def human_showed_up(self):
+    def human_showed_up(self, number_of_actions = 0, use_confidence = False):
         print("Human showed up on time to rescue Yellow Victim together")
-        self.increment_values("rescue_yellow", 0.0, 0.1, self.bot)
+        
+        increment_value = 0.1   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)
     
     
     # Human found a yellow victim       
-    def human_found_alone(self):
-        pass
-    def human_rescue_alone(self):
-        # higher competencec than below, because he can pickup alone
-        pass
-    def human_rescue_together(self):
+    def human_found_alone_truth(self, number_of_actions = 0, use_confidence = False):
+        print("Human claimed to have Found a new Yellow Victim")
+        
+        increment_value = 0.1   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", increment_value, 0.0, self.bot)
+    
+    def human_found_alone_lie(self, number_of_actions = 0, use_confidence = False):
+        print("Human claimed to have Found a new Yellow Victim, while this victim has been Found before")
+        
+        increment_value = -0.15   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", increment_value, 0.0, self.bot)
+    
+    
+    def human_collect_alone_truth(self, number_of_actions = 0, use_confidence = False):
+        # higher competencec than human_rescue_together, because he can pickup alone
+        print("Human claimed to have Collected a new Yellow Victim")
+        
+        increment_value = 0.1   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)
+    
+    def human_collect_alone_lie(self, number_of_actions = 0, use_confidence = False):
+        print("Human claimed to have Collected a new Yellow Victim, while this victim has been Collected before")
+        
+        increment_value = -0.15   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)
+    
+    def human_collect_alone_lie_location(self, number_of_actions = 0, use_confidence = False):
+        print("Human claimed to have Collected a new Yellow Victim, while this victim has been (claimed to be) found elsewhere")
+        
+        increment_value = -0.05   
+        if use_confidence:
+            increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+        self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)    
+    
+    
+    def human_rescue_together(self, number_of_actions = 0, use_confidence = False):
         pass
         
 
-    def complete_rescue_together(self):
-        print("Completed rescue!")
-        self.increment_values("rescue_yellow", 0.1, 0.2, self.bot)
-        self.delete_self()
+    # def complete_rescue_together(self, number_of_actions, use_confidence = False):
+    #     print("Completed rescue!")
             
+    #     self.increment_values("rescue_yellow", 0.1, 0.2, self.bot)
+    #     self.delete_self()
+            
+    
     # Determine which decision the agent should make based on trust values
     def decision_making(self):
         competence = self.bot._trustBeliefs[self.bot._human_name]['rescue_yellow']['competence']
@@ -124,12 +191,13 @@ class YellowVictimSession(PromptSession):
         return None, {} 
           
     
-    def delete_yellow_victim_session(self):
+    def delete_yellow_victim_session(self, flag=True):
         self.bot._yellow_victim_session = None
-        print("Yellow Victim Session Deleted")
+        if flag:
+            print("Yellow Victim Session Deleted")
     
     
-    def wait(self):
+    def wait(self, number_of_actions = 0, use_confidence = False):
         if self.ttl % 5 == 0 and self.ttl > 0:
             print("ttl:", self.ttl)
 
@@ -149,16 +217,22 @@ class YellowVictimSession(PromptSession):
         if self.ttl > 0:
             self.ttl -= 1
         if self.ttl == 0:
-            return self.on_timeout()
+            return self.on_timeout(number_of_actions, use_confidence)
             
         ####
-        return 0   
+        return 0
+       
 
-    def on_timeout(self):
+    def on_timeout(self, number_of_actions = 0, use_confidence = False):
         # Figure out what to do depending on the current phase
         if self.currPhase == self.YellowVictimPhase.WAITING_RESPONSE:
             print("Timed out waiting for response!")
-            self.increment_values("rescue_yellow", -0.15, -0.15, self.bot)
+            
+            increment_value = -0.10   
+            if use_confidence:
+                increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+            
+            self.increment_values("rescue_yellow", increment_value, 0.0, self.bot)
 
             from agents1.OfficialAgent import Phase
             self.bot._send_message('Picking up ' + self.bot._recent_vic + ' in ' + self.bot._door['room_name'] + '.',
@@ -167,7 +241,6 @@ class YellowVictimSession(PromptSession):
             
             # Change to True if this causes issues:
             self.bot._answered = True
-            #
             
             self.bot._waiting = False
             self.bot._goal_vic = self.bot._recent_vic
@@ -182,7 +255,12 @@ class YellowVictimSession(PromptSession):
                     
         elif self.currPhase == self.YellowVictimPhase.WAITING_HUMAN:
             print("Timed out waiting for human! Human Didn't show up!")
-            self.increment_values("rescue_yellow", -0.1, 0, self.bot)
+            
+            increment_value = -0.10   
+            if use_confidence:
+                increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
+                
+            self.increment_values("rescue_yellow", 0.0, increment_value, self.bot)
 
             from agents1.OfficialAgent import Phase
             
@@ -193,7 +271,6 @@ class YellowVictimSession(PromptSession):
                 
             # Change to True if this causes issues:
             self.bot._answered = True
-            # 
             
             self.bot._waiting = False
             self.bot._goal_vic = self._goal_vic
@@ -212,4 +289,3 @@ class YellowVictimSession(PromptSession):
             print("How did you even get here?!")
             pass
 
-#TODO: Implement Confidence Level
