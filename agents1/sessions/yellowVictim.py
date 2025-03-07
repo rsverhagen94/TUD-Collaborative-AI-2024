@@ -14,11 +14,7 @@ class YellowVictimSession(PromptSession):
     
     # Trust Belief Thresholds
     WILLINGNESS_THRESHOLD = 0.7
-    VERY_LOW_WILLINGNESS_THRESHOLD = -0.5
-    
     COMPETENCE_THRESHOLD = 0.0
-    VERY_LOW_COMPETENCE_THRESHOLD = -0.5
-    
     
     
     def __init__(self, bot, info, ttl=-1):
@@ -147,9 +143,6 @@ class YellowVictimSession(PromptSession):
         print(f"competence: {competence}")
         print(f"willingness: {willingness}")
 
-        if willingness < self.VERY_LOW_WILLINGNESS_THRESHOLD or competence < self.VERY_LOW_COMPETENCE_THRESHOLD:
-            return self.TrustDecision.LOW_COMPETENCE_AND_LOW_WILLINGNESS
-        
         if willingness < self.WILLINGNESS_THRESHOLD and competence < self.COMPETENCE_THRESHOLD:
             return self.TrustDecision.LOW_COMPETENCE_AND_LOW_WILLINGNESS
         
