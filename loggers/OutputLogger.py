@@ -47,8 +47,12 @@ def output_logger(fld):
                 trustfile_contents.append(res)
     # Retrieve the stored trust belief values
     name = trustfile_contents[-1]['name']
-    competence = trustfile_contents[-1]['competence']
-    willingness = trustfile_contents[-1]['willingness']
+    competency_rescue_severelyInjured = trustfile_contents[-1]['competency_rescue_severelyInjured']
+    competency_rescue_mildlyInjured = trustfile_contents[-1]['competency_rescue_mildlyInjured']
+    competency_arrival = trustfile_contents[-1]['competency_arrival']
+    willingness_search = trustfile_contents[-1]['willingness_search']
+    willingness_response = trustfile_contents[-1]['willingness_response']
+    willingness_rescue = trustfile_contents[-1]['willingness_rescue']
     # Retrieve the number of ticks to finish the task, score, and completeness
     no_ticks = action_contents[-1]['tick_nr']
     score = action_contents[-1]['score']
@@ -61,4 +65,5 @@ def output_logger(fld):
         csv_writer.writerow([completeness,score,no_ticks,len(unique_agent_actions),len(unique_human_actions)])
     with open(fld + '/beliefs/allTrustBeliefs.csv', mode='a+') as csv_file:
         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        csv_writer.writerow([name,competence,willingness])
+        # csv_writer.writerow(['name','competency_rescue_severelyInjured','competency_rescue_mildlyInjured','competency_arrival', 'willingness_search', 'willingness_response','willingness_rescue'])
+        csv_writer.writerow([name,competency_rescue_severelyInjured,competency_rescue_mildlyInjured,competency_arrival, willingness_search, willingness_response,willingness_rescue])
