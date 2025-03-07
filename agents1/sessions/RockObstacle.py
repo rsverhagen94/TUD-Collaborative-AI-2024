@@ -140,6 +140,17 @@ class RockObstacleSession(PromptSession):
             self.bot._rock_obstacle_session = None
             if hasattr(self.bot, '_current_prompt') and self.bot._current_prompt is self:
                 self.bot._current_prompt = None
-            print("Rock obstacle session deleted successfully")
+            print("Rock obstacle session deleted")
         else:
             print("Warning: Could not delete rock obstacle session - reference not found")
+            
+    def increment_values(self, task, willingness, competence, bot):
+        RockObstacleSession.count_actions += 1
+        print("Confidence:", self.get_confidence())
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "willingness",
+                         self.get_confidence() * willingness)
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "competence",
+                         self.get_confidence() * competence)
+
+    def get_confidence(self):
+        return min(1.0, max(0.0, RockObstacleSession.count_actions / 2))

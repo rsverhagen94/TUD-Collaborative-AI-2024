@@ -14,10 +14,10 @@ class YellowVictimSession(PromptSession):
     
     # Trust Belief Thresholds
     WILLINGNESS_THRESHOLD = 0.7
-    Very_LOW_WILLINGNESS_THRESHOLD = -0.5
+    VERY_LOW_WILLINGNESS_THRESHOLD = -0.5
     
     COMPETENCE_THRESHOLD = 0.0
-    Very_LOW_COMPETENCE_THRESHOLD = -0.5
+    VERY_LOW_COMPETENCE_THRESHOLD = -0.5
     
     
     
