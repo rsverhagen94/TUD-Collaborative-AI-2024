@@ -11,11 +11,13 @@ from matrx.agents.agent_utils.state_tracker import StateTracker
 from matrx.actions.door_actions import OpenDoorAction
 from matrx.actions.object_actions import GrabObject, DropObject, RemoveObject
 from matrx.actions.move_actions import MoveNorth
-import random
 from matrx.messages.message import Message
 from matrx.messages.message_manager import MessageManager
 from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, DropObjectTogether, CarryObject, Drop
-
+import csv
+import os
+from datetime import datetime
+import random
 
 class Phase(enum.Enum):
     INTRO = 1,
@@ -114,6 +116,7 @@ class BaselineAgent(ArtificialBrain):
         self.re_searching = False
         self._reported_rooms = []
         self._went_into_already_searched_room = False
+        self.game_id = random.getrandbits(32)
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -444,6 +447,7 @@ class BaselineAgent(ArtificialBrain):
                     if 'class_inheritance' in info and 'ObstacleObject' in info['class_inheritance'] and 'rock' in info[
                         'obj_id']:
                         objects.append(info)
+
                         # Communicate which obstacle is blocking the entrance
                         if self._answered == False and not self._remove and not self._waiting:
 
@@ -492,9 +496,12 @@ class BaselineAgent(ArtificialBrain):
                             self._send_message("-WILLINGNESS Robot waited for human for too long and gave up", "RescueBot")
                             self.waiting_for_human = False
                             self.waiting_for_human_start = None
-                            self._send_message("", "You did not come to help me destroy a rock!")
 
-                            self._phase = Phase.PICK_UNSEARCHED_ROOM
+                            # self._answered = True
+                            self._waiting = False
+                            self._to_search.append(self._door['room_name'])
+                            self._phase = Phase.FIND_NEXT_GOAL
+
                             return None, {}
 
                         # Remain idle untill the human communicates what to do with the identified obstacle
@@ -552,6 +559,8 @@ class BaselineAgent(ArtificialBrain):
                             if self.re_searching:
                                 self._willingness_additions.append(("willingness_search", -1 * SEARCH_ROOM_LIE))
                                 self._send_message("-WILLINGNESS You claimed you searched this but there is a stone blocking the entrance!", "RescueBot")
+
+
                             self._send_message('Found stones blocking  ' + str(self._door['room_name']) + '. Please decide whether to "Remove together", "Remove alone", or "Continue" searching. \n \n \
                                 Important features to consider are: \n safe - victims rescued: ' + str(
                                 self._collected_victims) + ' \n explore - areas searched: area ' + str(
@@ -603,13 +612,18 @@ class BaselineAgent(ArtificialBrain):
 
                         if self.waiting_for_human and time.time() - self.waiting_for_human_start > ARRIVAL_TIME_LIMIT:
                             self._willingness_additions.append(("willingness_response", -1 * ARRIVAL_REWARD))
-                            self._send_message("-WILLINGNESS You did not come to help me destroy a stone!", "RescueBot")
+                            self._send_message("-WILLINGNESS Robot waited for human for too long and gave up",
+                                               "RescueBot")
                             self.waiting_for_human = False
                             self.waiting_for_human_start = None
 
-                            self._goal_vic = None
-                            self._phase = Phase.PICK_UNSEARCHED_ROOM
+                            #self._answered = False
+                            self._waiting = False
+                            self._to_search.append(self._door['room_name'])
+                            self._phase = Phase.FIND_NEXT_GOAL
+
                             return None, {}
+
 
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
@@ -908,6 +922,9 @@ class BaselineAgent(ArtificialBrain):
                         self.waiting_for_human = False
                         self.waiting_for_human_start = None
 
+                        self._waiting = False
+                        self._answered = False
+
                         self._goal_vic = None
                         self._phase = Phase.PICK_UNSEARCHED_ROOM
                         return None, {}
@@ -1124,7 +1141,7 @@ class BaselineAgent(ArtificialBrain):
             }
 
             return trustBeliefs
-        
+
         # Check if agent already collaborated with this human before, if yes: load the corresponding trust values, if no: initialize using default trust values
         with open(folder + '/beliefs/allTrustBeliefs.csv') as csvfile:
             reader = csv.reader(csvfile, delimiter=';', quotechar="'")
@@ -1132,7 +1149,7 @@ class BaselineAgent(ArtificialBrain):
                 if trustfile_header == []:
                     trustfile_header = row
                     continue
-                # Retrieve trust values 
+                # Retrieve trust values
                 if row and row[0] == self._human_name:
                     name = row[0]
                     trustBeliefs[name] = {
@@ -1171,9 +1188,48 @@ class BaselineAgent(ArtificialBrain):
 
         return trustBeliefs
 
+    # def saveTrustBeliefs(self, trustBeliefs):
+    #     # Define the header row
+    #     header = ['timestamp', 'game_id', 'name'] + self._possible_attributes
+    #     csv_file_path = self._folder + '/beliefs/allBeliefs.csv'
+    #
+    #     # Read existing data
+    #     existing_rows = []
+    #     game_id_exists = False
+    #
+    #     if os.path.exists(csv_file_path):
+    #         with open(csv_file_path, mode='r', newline='') as csv_file:
+    #             csv_reader = csv.reader(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #             existing_rows = list(csv_reader)
+    #
+    #     # Check if the header exists, otherwise add it
+    #     if not existing_rows or existing_rows[0] != header:
+    #         existing_rows.insert(0, header)
+    #
+    #     # Construct new row
+    #     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    #     new_row = [timestamp, str(self.game_id), self._human_name] + [
+    #         trustBeliefs[self._human_name][attribute] for attribute in self._possible_attributes
+    #     ]
+    #
+    #     # Update the row if game_id exists, otherwise append
+    #     for i, row in enumerate(existing_rows[1:], start=1):  # Skip header
+    #         if len(row) > 1 and row[1] == str(self.game_id):  # Check game_id column
+    #             existing_rows[i] = new_row  # Update the row
+    #             game_id_exists = True
+    #             break
+    #
+    #     if not game_id_exists:
+    #         existing_rows.append(new_row)  # Append new row if game_id not found
+    #
+    #     with open(csv_file_path, mode='w', newline='') as csv_file:
+    #         csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    #         csv_writer.writerows(existing_rows)
+
     '''
-    1 means we trust, 0 means we don't trust
-    '''
+     1 means we trust, 0 means we don't trust
+     '''
+
     def _decide(self, trust):
         rand = (random.random() * 2 - 1)
         return rand < trust
