@@ -93,13 +93,15 @@ class TreeObstacleSession(PromptSession):
         return RemoveObject.__name__, {'object_id': self.info['obj_id']}
 
 #TODO: Implement Confidence Level
-    def increment_values(self, task, willingness, competence, bot):
+    @staticmethod
+    def increment_values(task, willingness, competence, bot):
         TreeObstacleSession.count += 1
-        print("Confidence:", self.get_confidence())
+        print("Confidence:", TreeObstacleSession.get_confidence())
         bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "willingness",
-                         self.get_confidence() * willingness)
+                         TreeObstacleSession.get_confidence() * willingness)
         bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "competence",
-                         self.get_confidence() * competence)
+                         TreeObstacleSession.get_confidence() * competence)
 
-    def get_confidence(self):
+    @staticmethod
+    def get_confidence():
         return min(1.0, max(0.0, TreeObstacleSession.count / 2))
