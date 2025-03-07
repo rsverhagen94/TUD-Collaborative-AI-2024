@@ -23,11 +23,12 @@ class TreeObstacleSession(PromptSession):
 
         VERY_LOW_COMPETENCE_THRESHOLD = -0.2
         VERY_LOW_WILLINGNESS_THRESHOLD = -0.3
-        if (bot._trustBeliefs[bot._human_name]['remove_tree']['competence'] > VERY_LOW_COMPETENCE_THRESHOLD or
-                bot._trustBeliefs[bot._human_name]['remove_tree']['willingness'] > VERY_LOW_WILLINGNESS_THRESHOLD):
+        if (bot._trustBeliefs[bot._human_name]['remove_tree']['competence'] < VERY_LOW_COMPETENCE_THRESHOLD or
+                bot._trustBeliefs[bot._human_name]['remove_tree']['willingness'] < VERY_LOW_WILLINGNESS_THRESHOLD):
             bot._answered = True
             bot._waiting = False
-            bot._send_message('Removing tree blocking ' + str(bot._door['room_name']) + '.',
+            bot._send_message('Removing tree blocking ' + str(bot._door['room_name']) + ' due to very low willingness or'
+                                                                                        ' competence.',
                               'RescueBot')
             from agents1.OfficialAgent import Phase, RemoveObject
             bot._phase = Phase.ENTER_ROOM
@@ -47,7 +48,8 @@ class TreeObstacleSession(PromptSession):
         # If we have low competence and willingness beliefs for the human, remove the tree immediately
         bot._answered = True
         bot._waiting = False
-        bot._send_message('Removing tree blocking ' + str(bot._door['room_name']) + '.',
+        bot._send_message('Removing tree blocking ' + str(bot._door['room_name']) + ' due to low willingness and '
+                                                                                    'competence.',
                                'RescueBot')
         from agents1.OfficialAgent import Phase, RemoveObject
         bot._phase = Phase.ENTER_ROOM

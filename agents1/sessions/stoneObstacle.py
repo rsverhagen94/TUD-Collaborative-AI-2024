@@ -29,12 +29,13 @@ class StoneObstacleSession(PromptSession):
 
         VERY_LOW_COMPETENCE_THRESHOLD = -0.2
         VERY_LOW_WILLINGNESS_THRESHOLD = -0.3
-        if (bot._trustBeliefs[bot._human_name]['remove_stone']['competence'] > VERY_LOW_COMPETENCE_THRESHOLD or
-                bot._trustBeliefs[bot._human_name]['remove_stone']['willingness'] > VERY_LOW_WILLINGNESS_THRESHOLD):
+        if (bot._trustBeliefs[bot._human_name]['remove_stone']['competence'] < VERY_LOW_COMPETENCE_THRESHOLD or
+                bot._trustBeliefs[bot._human_name]['remove_stone']['willingness'] < VERY_LOW_WILLINGNESS_THRESHOLD):
             # If we have low competence and willingness beliefs for the human, remove the stone immediately
             bot._answered = True
             bot._waiting = False
-            bot._send_message('Removing stones blocking ' + str(bot._door['room_name']) + '.',
+            bot._send_message('Removing stones blocking ' + str(bot._door['room_name']) + ' due to very low competence '
+                                                                                          'or willingness.',
                               'RescueBot')
             from agents1.OfficialAgent import Phase, RemoveObject
             bot._phase = Phase.ENTER_ROOM
@@ -54,7 +55,8 @@ class StoneObstacleSession(PromptSession):
         # If we have low competence and willingness beliefs for the human, remove the stone immediately
         bot._answered = True
         bot._waiting = False
-        bot._send_message('Removing stones blocking ' + str(bot._door['room_name']) + '.',
+        bot._send_message('Removing stones blocking ' + str(bot._door['room_name']) + ' due to low competence and '
+                                                                                      'willingness.',
                                'RescueBot')
         from agents1.OfficialAgent import Phase, RemoveObject
         bot._phase = Phase.ENTER_ROOM
