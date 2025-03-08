@@ -17,7 +17,8 @@ from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, Dr
 
 WEIGHTS = {
     'found_victim_false': -1.0,
-g    'found_victim_true': 0.3,
+    'found_victim_true': 0.3,
+    'waiting_too_long': -0.2
 }
 
 TRUST_TRESHOLDS = {
@@ -86,6 +87,9 @@ class CustomAgent(ArtificialBrain):
         self._received_messages = []
         self._moving = False
         self._trustBeliefs = {}
+        self._remove_start_tick = None
+        self._max_remove_wait_ticks_close = 175 
+        self._max_remove_wait_ticks_far = 300  
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -506,22 +510,47 @@ class CustomAgent(ArtificialBrain):
                         # Remove the obstacle together if the human decides so
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Remove together' or self._remove:
+                            print("removing together")
                             if not self._remove:
                                 self._answered = True
-                            # Tell the human to come over and be idle untill human arrives
-                            if not state[{'is_human_agent': True}]:
+                                self._waiting = True
+                                self._remove = True
+                                # Start tracking time
+                                self._remove_start_tick = state['World']['nr_ticks']
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
-                                # return None, {}
-                                return Idle.__name__, {'duration_in_ticks': 25}
-                                # self._send_message(
-                                #     'I have waited too long, so I have decided to continue.',
-                                #     'RescueBot')
+                            # Tell the human to come over 
+                            if not state[{'is_human_agent': True}] and self._waiting:
+                                # Check if waited too long
+                                current_tick = state['World']['nr_ticks']
+                                max_wait = self._max_remove_wait_ticks_close if self._distance_human == 'close' else self._max_remove_wait_ticks_far
+                                if self._remove_start_tick and (current_tick - self._remove_start_tick) > max_wait:
+                                    # Apply trust penalty and reset state
+                                    self._trustBeliefs[self._human_name]['rescue']['competence'] += WEIGHTS['waiting_too_long']
+                                    self._normalize_trust_beliefs(self._trustBeliefs)
+                                    self._send_message('You took too long to help remove the stones. I will continue with other tasks.', 'RescueBot')
+                                    # Reset all state variables
+                                    self._remove_start_tick = None
+                                    self._remove = False
+                                    self._waiting = False
+                                    self._answered = True
+                                    self._to_search.append(self._door['room_name'])
+                                    self._door = None
+                                    self._recent_vic = None
+                                    self._phase = Phase.FIND_NEXT_GOAL
+                                    return Idle.__name__, {'action_duration': 1}
+                                
+                                self._send_message(
+                                    'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
+                                    'RescueBot')
+                                return Idle.__name__, {'action_duration': 10}
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
                                                   'RescueBot')
+                                # Reset remove start tick since human arrived
+                                self._remove_start_tick = None
                                 return None, {}
                         # Remain idle until the human communicates what to do with the identified obstacle
                         else:
@@ -789,8 +818,8 @@ class CustomAgent(ArtificialBrain):
                     self._carrying_together = True
                     # Determine the next victim to rescue or search
                     # BEN
-                    self._phase = Phase.CHECK_DROP_ZONE
-                    # self._phase = Phase.FIND_NEXT_GOAL
+                    # self._phase = Phase.CHECK_DROP_ZONE
+                    self._phase = Phase.FIND_NEXT_GOAL
                 # When rescuing mildly injured victims alone, pick the victim up and plan the path to the drop zone
                 if 'mild' in self._goal_vic and self._rescue == 'alone':
                     self._phase = Phase.PLAN_PATH_TO_DROPPOINT
@@ -965,6 +994,8 @@ class CustomAgent(ArtificialBrain):
                 if msg.startswith('Remove:'):
                     # Come over immediately when the agent is not carrying a victim
                     if not self._carrying:
+                        # Start tracking time for the remove together action
+                        self._remove_start_tick = state['World']['nr_ticks']
                         # Identify at which location the human needs help
                         area = 'area ' + msg.split()[-1]
                         self._door = state.get_room_doors(area)[0]
