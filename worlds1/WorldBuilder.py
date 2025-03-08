@@ -21,11 +21,35 @@ from brains1.HumanBrain import HumanBrain
 from loggers.ActionLogger import ActionLogger
 from datetime import datetime
 
+#############################
+from matrx.actions.object_actions import Action, ActionResult
+
+
+class GenerateOutput(Action):
+    def __init__(self, duration_in_ticks=0):
+        super().__init__(duration_in_ticks)
+
+    def is_possible(self, grid_world, agent_id, **kwargs):
+        return GenerateOutputResult(GenerateOutputResult.RESULT_SUCCESS, True)
+
+
+class GenerateOutputResult(ActionResult):
+    RESULT_SUCCESS = 'Created output'
+    RESULT_FAILED = 'Failed to create output'
+
+    def __init__(self, result, succeeded):
+        super().__init__(result, succeeded)
+
+
+########################################
+
+
 random_seed = 1
 verbose = False
 # Tick duration determines the speed of the world. A tick duration of 0.1 means 10 ticks are executed in a second. 
 # You can speed up or slow down the world by changing this value without changing behavior. Leave this value at 0.1 during evaluations.
 tick_duration = 0.1
+
 # Define the keyboarc controls for the human agent
 key_action_map = {
         'ArrowUp': MoveNorth.__name__,
@@ -38,6 +62,7 @@ key_action_map = {
         'a': CarryObjectTogether.__name__,
         's': DropObjectTogether.__name__,
         'e': RemoveObject.__name__,
+        '`': GenerateOutput.__name__,
     }
 
 # Some settings

@@ -26,16 +26,15 @@ class RedVictimSession(PromptSession):
     @staticmethod
     def calculate_time_proximity_scale(actual_time, estimated_time, max_deviation=20):
         """
-        Calculate a scaling factor (0..1) based on how close actual_time is to estimated_time.
-        If time_diff <= max_deviation, produce a value between 0..1 (logarithmic).
-        If far beyond max_deviation, return -1 (indicating a big negative penalty).
+        Calculate a scaling factor (0..1) based on how close actual time is to the estimated time.
+        Large deviations lead to lower scaling; small deviations closer to 1.
         """
         time_diff = abs(actual_time - estimated_time)
         if time_diff <= max_deviation:
-            # Logarithmic scaling so small differences give near 1.0, bigger differences yield smaller factors
+            # Logarithmic scaling to weight small deviations more strongly
             return 1 - math.log(time_diff + 1) / math.log(max_deviation + 1)
         else:
-            # Too large a deviation => negative signal
+            # If it’s far beyond the acceptable deviation, we return a negative signal
             return -1
 
     def modify_competence_by_time(self, actual_time, estimated_time, number_of_actions=0, use_confidence=False):
@@ -149,7 +148,7 @@ class RedVictimSession(PromptSession):
             self.ttl -= 1
             if self.ttl == 0:
                 return self.on_timeout(self.number_of_actions, use_confidence)
-                
+
         # If we are waiting for the human physically after they said "Rescue"
         # if self.currPhase == self.RedVictimPhase.WAITING_HUMAN:
         #     if self.check_human_proximity():
@@ -208,7 +207,7 @@ class RedVictimSession(PromptSession):
             self.delete_self()
             print(f"RedVictimSession timeout completed - moved on from {temp_vic}")
             return 1
-            
+
         elif self.currPhase == self.RedVictimPhase.WAITING_HUMAN:
             print("Timed out waiting for human to arrive! Human did not show up in time.")
             willingness_increment = -0.1
@@ -244,10 +243,11 @@ class RedVictimSession(PromptSession):
             self.delete_self()
             print(f"RedVictimSession timeout completed - moved on from {temp_vic}")
             return 1
+
         else:
             print("on_timeout called, but we are in an unknown phase. No action taken.")
             return 1
-
+    #TODO: DELETE THIS!
     def check_human_proximity(self):
         """
         Check if the human agent is close to the victim.
@@ -264,7 +264,7 @@ class RedVictimSession(PromptSession):
                 if self.room_name in str(info.get('room_name', '')):
                     return True
         return False
-
+    # TODO: Evaluate whether this gets called at all
     def human_showed_up(self, number_of_actions=0, use_confidence=False):
         """
         Called when the human arrives at the victim location.
