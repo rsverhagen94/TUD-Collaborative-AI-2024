@@ -31,12 +31,10 @@ class ActionLogger(GridWorldLogger):
             "willingness_rescue"
         ]
 
-        with open(os.getcwd() + '/beliefs/allTrustBeliefs.csv') as csvfile:
-            reader = csv.reader(csvfile, delimiter=';', quotechar="'")
+        with open(os.getcwd() + '/beliefs/currentTrustBelief.csv') as csvfile:
+            reader = csv.DictReader(csvfile, delimiter=';', quotechar="'")
             for row in reader:
                 if any(row):
-                    name = row[0]
-                    for i, attribute in enumerate(possible_attributes):
-                        log_data[name + '_' + attribute] = row[i+1]
+                    log_data.update(row)
                 
         return log_data
