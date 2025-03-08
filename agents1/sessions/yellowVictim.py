@@ -39,7 +39,7 @@ class YellowVictimSession(PromptSession):
             increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
         
         self.increment_values("rescue_yellow", increment_value, 0, self.bot)
-        self.delete_self()
+        self.delete_yellow_victim_session()
         
     def robot_rescue_alone(self, number_of_actions = 0, use_confidence = False):
         print("Robot Rescue Alone heard")
@@ -49,7 +49,7 @@ class YellowVictimSession(PromptSession):
             increment_value = self.calculate_increment_with_confidence(number_of_actions, increment_value)
             
         self.increment_values("rescue_yellow", increment_value, 0, self.bot)
-        self.delete_self()
+        self.delete_yellow_victim_session()
 
     def robot_rescue_together(self, ttl=50, number_of_actions = 0, use_confidence = False):
         print("Robot Rescue Together heard")
@@ -199,7 +199,7 @@ class YellowVictimSession(PromptSession):
     
     def wait(self, number_of_actions = 0, use_confidence = False):
         if self.ttl % 5 == 0 and self.ttl > 0:
-            print("ttl:", self.ttl)
+            print("YELLOW ttl:", self.ttl)
 
         if self.bot._recent_vic is not None and self._goal_vic is None:
             self._goal_vic = self.bot._recent_vic
