@@ -92,7 +92,6 @@ class TreeObstacleSession(PromptSession):
 
         return RemoveObject.__name__, {'object_id': self.info['obj_id']}
 
-#TODO: Implement Confidence Level
     @staticmethod
     def increment_values(task, willingness, competence, bot):
         TreeObstacleSession.count += 1

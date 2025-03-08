@@ -2,7 +2,7 @@ import enum
 from agents1.eventUtils import PromptSession
 
 class RockObstacleSession(PromptSession):
-
+    count_actions = 0
 
     class RockObstaclePhase(enum.Enum):
         WAITING_RESPONSE = 0
@@ -115,3 +115,16 @@ class RockObstacleSession(PromptSession):
 
         # Return a 1-tick Idle to break out. Next tick, the agent will do normal searching.
         return Idle.__name__, {}
+
+    @staticmethod
+    def increment_values(task, willingness, competence, bot):
+        RockObstacleSession.count_actions += 1
+        print("Confidence:", RockObstacleSession.get_confidence())
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "willingness",
+                         RockObstacleSession.get_confidence() * willingness)
+        bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "competence",
+                         RockObstacleSession.get_confidence() * competence)
+
+    @staticmethod
+    def get_confidence():
+        return min(1.0, max(0.0, RockObstacleSession.count_actions / 2))
