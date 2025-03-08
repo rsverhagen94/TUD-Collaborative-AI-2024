@@ -142,13 +142,16 @@ class StoneObstacleSession(PromptSession):
             pass
 
 #TODO: Implement Confidence Level
-    def increment_values(self, task, willingness, competence, bot):
-        StoneObstacleSession.count += 1
-        print("Confidence:", self.get_confidence())
+    @staticmethod
+    def increment_values(task, willingness, competence, bot, is_action=True):
+        if is_action:
+            StoneObstacleSession.count += 1
+        print("Confidence:", StoneObstacleSession.get_confidence())
         bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "willingness",
-                         self.get_confidence() * willingness)
+                         StoneObstacleSession.get_confidence() * willingness)
         bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "competence",
-                         self.get_confidence() * competence)
+                         StoneObstacleSession.get_confidence() * competence)
 
-    def get_confidence(self):
+    @staticmethod
+    def get_confidence():
         return min(1.0, max(0.0, StoneObstacleSession.count / 2))

@@ -93,8 +93,9 @@ class TreeObstacleSession(PromptSession):
         return RemoveObject.__name__, {'object_id': self.info['obj_id']}
 
     @staticmethod
-    def increment_values(task, willingness, competence, bot):
-        TreeObstacleSession.count += 1
+    def increment_values(task, willingness, competence, bot, is_action=True):
+        if is_action:
+            TreeObstacleSession.count += 1
         print("Confidence:", TreeObstacleSession.get_confidence())
         bot._trustBelief(bot._team_members, bot._trustBeliefs, bot._folder, task, "willingness",
                          TreeObstacleSession.get_confidence() * willingness)

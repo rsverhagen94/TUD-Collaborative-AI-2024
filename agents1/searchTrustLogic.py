@@ -81,6 +81,18 @@ def penalize_search_competence_for_claimed_searched_room_with_obstacle(agent, ob
     increment = calculate_increment_with_confidence(agent._number_of_actions_search, -0.2) if use_confidence else -0.2
     agent._trustBelief(agent._team_members, agent._trustBeliefs, agent._folder, 'search', 'competence', increment)
     agent._not_penalizable.append(agent._door['room_name']) # this area should not be penalized again in this search round
+
+    from sessions.RockObstacle import RockObstacleSession
+    from sessions.stoneObstacle import StoneObstacleSession
+    from sessions.treeObstacle import TreeObstacleSession
+
+    if obstacle_type == 'rock':
+        RockObstacleSession.increment_values("remove_rock", -0.01, -0.02, agent, False)
+    if obstacle_type == 'stone':
+        StoneObstacleSession.increment_values("remove_stone", -0.01, -0.02, agent, False)
+    if obstacle_type == 'tree':
+        TreeObstacleSession.increment_values("remove_tree", -0.01, -0.02, agent, False)
+
     print(f"[SearchTrust] Penalizing search competence for finding a {obstacle_type} in a claimed searched room {agent._door['room_name']}: {increment:.2f}")
 
 
