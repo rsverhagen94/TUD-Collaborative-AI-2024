@@ -8,8 +8,12 @@ competency_arrival = []
 willingness_search = []
 willingness_response = []
 willingness_rescue = []
+score = []
+completeness = []
 
-with open('allTrustBeliefs.csv', 'r') as file:
+ticks = []
+
+with open('actions.csv', 'r') as file:
     reader = csv.DictReader(file, delimiter=';')
 
     for row in reader:
@@ -20,19 +24,34 @@ with open('allTrustBeliefs.csv', 'r') as file:
         willingness_response.append(float(row['willingness_response']))
         willingness_rescue.append(float(row['willingness_rescue']))
 
-plt.figure(figsize=(10, 6))
+        score.append(float(row['score']))
+        completeness.append(float(row['completeness']))
+        ticks.append(float(row['tick_nr']))
 
-timestamps = range(len(competency_rescue_severelyInjured))
-plt.plot(timestamps, competency_rescue_severelyInjured, label='competency_rescue_severelyInjured')
-plt.plot(timestamps, competency_rescue_mildlyInjured, label='competency_rescue_mildlyInjured')
-plt.plot(timestamps, competency_arrival, label='competency_arrival')
-plt.plot(timestamps, willingness_search, label='willingness_search')
-plt.plot(timestamps, willingness_response, label='willingness_response')
-plt.plot(timestamps, willingness_rescue, label='willingness_rescue')
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
 
-plt.xlabel('Time')
-plt.ylabel('Values')
-plt.title('Beliefs over time')
-plt.legend()
+fig.suptitle('Alice', fontsize=14)
+
+ax1.plot(ticks, competency_rescue_severelyInjured, label='competency_rescue_severelyInjured')
+ax1.plot(ticks, competency_rescue_mildlyInjured, label='competency_rescue_mildlyInjured')
+ax1.plot(ticks, competency_arrival, label='competency_arrival')
+ax1.plot(ticks, willingness_search, label='willingness_search')
+ax1.plot(ticks, willingness_response, label='willingness_response')
+ax1.plot(ticks, willingness_rescue, label='willingness_rescue')
+
+ax1.set_title('Beliefs')
+ax1.set_ylim(-1, 1)
+ax1.legend()
+ax1.grid(True)
+
+ax2.plot(ticks, score, label='score')
+ax2.plot(ticks, completeness, label='completeness')
+
+ax2.set_title('Progress')
+ax1.set_ylim(0, 1)
+ax2.set_xlabel('Tick')
+ax2.legend()
+ax2.grid(True)
+
 plt.tight_layout()
 plt.show()
