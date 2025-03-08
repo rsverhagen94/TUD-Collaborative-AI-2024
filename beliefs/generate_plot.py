@@ -12,11 +12,13 @@ score = []
 completeness = []
 
 ticks = []
+name = ''
 
 with open('actions.csv', 'r') as file:
     reader = csv.DictReader(file, delimiter=';')
 
     for row in reader:
+        name = row['name']
         competency_rescue_severelyInjured.append(float(row['competency_rescue_severelyInjured']))
         competency_rescue_mildlyInjured.append(float(row['competency_rescue_mildlyInjured']))
         competency_arrival.append(float(row['competency_arrival']))
@@ -30,7 +32,7 @@ with open('actions.csv', 'r') as file:
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
 
-fig.suptitle('Alice', fontsize=14)
+fig.suptitle(name, fontsize=14)
 
 ax1.plot(ticks, competency_rescue_severelyInjured, label='competency_rescue_severelyInjured')
 ax1.plot(ticks, competency_rescue_mildlyInjured, label='competency_rescue_mildlyInjured')
