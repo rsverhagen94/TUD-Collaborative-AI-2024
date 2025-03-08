@@ -17,7 +17,7 @@ from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, Dr
 
 WEIGHTS = {
     'found_victim_false': -1.0,
-    'found_victim_true': 0.3,
+g    'found_victim_true': 0.3,
 }
 
 TRUST_TRESHOLDS = {
@@ -43,8 +43,8 @@ class Phase(enum.Enum):
     FIX_ORDER_GRAB = 16,
     FIX_ORDER_DROP = 17,
     REMOVE_OBSTACLE_IF_NEEDED = 18,
-    ENTER_ROOM = 19
-
+    ENTER_ROOM = 19,
+    CHECK_DROP_ZONE = 20
 
 class CustomAgent(ArtificialBrain):
     def __init__(self, slowdown, condition, name, folder):
@@ -60,6 +60,8 @@ class CustomAgent(ArtificialBrain):
         self._searched_rooms = []
         # where we don't actually believe the human searhed
         self._possible_searched_rooms = []
+        self._possible_rescued_humans = []
+
         self._found_victims = []
         self._collected_victims = []
         self._found_victim_logs = {}
@@ -332,13 +334,13 @@ class CustomAgent(ArtificialBrain):
                         and self._door['room_name'] != self._found_victim_logs[self._goal_vic]['room']:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                    self._trustBeliefs[self._human_name]['search']['competence'] = WEIGHTS['found_victim_false']
+                    # self._trustBeliefs[self._human_name]['search']['competence'] = WEIGHTS['found_victim_false']
 
                 # Check if the human already searched the previously identified area without finding the target victim
                 if self._door['room_name'] in self._searched_rooms and self._goal_vic not in self._found_victims:
                     self._current_door = None
                     self._phase = Phase.FIND_NEXT_GOAL
-                    self._trustBeliefs[self._human_name]['search']['willingness'] = WEIGHTS['found_victim_false']
+                    # self._trustBeliefs[self._human_name]['search']['willingness'] = WEIGHTS['found_victim_false']
 
                 # Move to the next area to search
                 else:
@@ -511,7 +513,11 @@ class CustomAgent(ArtificialBrain):
                                 self._send_message(
                                     'Please come to ' + str(self._door['room_name']) + ' to remove stones together.',
                                     'RescueBot')
-                                return None, {}
+                                # return None, {}
+                                return Idle.__name__, {'duration_in_ticks': 25}
+                                # self._send_message(
+                                #     'I have waited too long, so I have decided to continue.',
+                                #     'RescueBot')
                             # Tell the human to remove the obstacle when he/she arrives
                             if state[{'is_human_agent': True}]:
                                 self._send_message('Lets remove stones blocking ' + str(self._door['room_name']) + '!',
@@ -602,7 +608,7 @@ class CustomAgent(ArtificialBrain):
                                         'room_name'] + ' because you told me ' + vic + ' was located here.',
                                                       'RescueBot')
                                     # if the human said the truth about the location of a victim, really good
-                                    self._trustBeliefs[self._human_name]['search']['competence'] += WEIGHTS['found_victim_truth']
+                                    # self._trustBeliefs[self._human_name]['search']['competence'] += WEIGHTS['found_victim_truth']
                                     self._normalize_trust_beliefs(self._trustBeliefs)
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
@@ -645,7 +651,7 @@ class CustomAgent(ArtificialBrain):
                     self._send_message(self._goal_vic + ' not present in ' + str(self._door[
                                                                                     'room_name']) + ' because I searched the whole area without finding ' + self._goal_vic + '.',
                                       'RescueBot')
-                    self._trustBeliefs[self._human_name]['search']['competence'] = WEIGHTS['found_victim_false']
+                    # self._trustBeliefs[self._human_name]['search']['competence'] = WEIGHTS['found_victim_false']
                     # Remove the victim location from memory
                     self._found_victim_logs.pop(self._goal_vic, None)
                     self._found_victims.remove(self._goal_vic)
@@ -831,6 +837,21 @@ class CustomAgent(ArtificialBrain):
                 return Drop.__name__, {'human_name': self._human_name}
 
             if Phase.CHECK_DROP_ZONE == self._phase:
+                counter = 0
+                victims = [item['victim'] for item in self._possible_searched_rooms]
+                locations = [item['room'] for item in self._possible_searched_rooms]
+                if (len(self._possible_searched_rooms) != counter):
+                    self._trustBeliefs[self._human_name]['rescue']['competence'] = WEIGHTS['found_victim_false']
+
+                else:
+                    self._trustBeliefs[self._human_name]['rescue']['competence'] += \
+                        WEIGHTS['found_victim_true'] * len(victims)
+
+                victim_to_room = {item['victim']: item['room'] for item in self._possible_searched_rooms}
+                for victim in victims:
+                    if victim in found_victims:
+                        self._found_victim_logs[victim] = {'room': victim_to_room[victim]}
+
                 print("we would be checking with the robot here")
                 self._phase = Phase.FIND_NEXT_GOAL
     def _get_drop_zones(self, state):
@@ -913,14 +934,14 @@ class CustomAgent(ArtificialBrain):
                     if loc in self._searched_rooms:
                         if collectVic not in self._found_victim_logs or self._found_victim_logs[collectVic]['room'] != loc:
                             print(self._trustBeliefs)
-                            self._trustBeliefs[self._human_name]['rescue']['competence'] = -1
+                            self._trustBeliefs[self._human_name]['rescue']['competence'] = WEIGHTS['found_victim_false']
 
-                            self._send_message("Liar, I have already checked there", "RescueBot")
+                            self._send_message("Liar, I have already checked there, or you told me that you will so you should have reported any", "RescueBot")
                     if loc not in self._searched_rooms:
                         if self._trustBeliefs[self._human_name]['rescue']['competence'] >= TRUST_TRESHOLDS['collecting_trust']:
                             self._searched_rooms.append(loc)
                         else:
-                            self._possible_searched_rooms.append(loc)
+                            self._possible_searched_rooms.append({'victim': collectVic, 'room': loc})
                             return
 
                     # Add the victim and location to the memory of found victims
@@ -984,6 +1005,7 @@ class CustomAgent(ArtificialBrain):
         # Create a dictionary with trust values for all team members
         trustBeliefs = {}
         # Set a default starting trust value
+
         default = TRUST_TRESHOLDS['default']
         trustfile_header = []
         trustfile_contents = []
