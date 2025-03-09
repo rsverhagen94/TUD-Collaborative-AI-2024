@@ -1177,9 +1177,10 @@ class BaselineAgent(ArtificialBrain):
 
         # Update the trust value based on for example the received messages
 
-        for addition in self._competency_additions + self._willingness_additions:
-            attribute, update_value = addition
-            trustBeliefs[self._human_name][attribute] += np.clip(update_value, -1, 1)
+        if self._baseline is None:
+            for addition in self._competency_additions + self._willingness_additions:
+                attribute, update_value = addition
+                trustBeliefs[self._human_name][attribute] += np.clip(update_value, -1, 1)
 
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
