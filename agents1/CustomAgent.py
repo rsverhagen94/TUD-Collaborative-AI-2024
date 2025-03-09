@@ -255,6 +255,8 @@ class CustomAgent(ArtificialBrain):
                                            'RescueBot')
                         self._rescue = 'alone'
                     return None, {}
+                else:
+                    self._found_all = False
 
                 # TODO: can change the logic of how the victims are moved by the robot
                 # Check which victims can be rescued next because human or agent already found them
@@ -1165,7 +1167,7 @@ class CustomAgent(ArtificialBrain):
             # to the list of saved victims.
             if expected_x == self._last_carrying_x and expected_y == self._last_carrying_y:
                 self._saved_victims.append(carried_victim)
-
+                self._moving = True
                 trustBeliefs[self._human_name]['rescue']['willingness'] += 0.10
                 trustBeliefs[self._human_name]['rescue']['willingness'] = np.clip(
                     trustBeliefs[self._human_name]['rescue']['willingness'], -1, 1)
