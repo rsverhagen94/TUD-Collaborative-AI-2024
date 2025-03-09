@@ -79,6 +79,7 @@ class CustomAgent(ArtificialBrain):
         self._last_carrying_y = 0
         self._dropped_victims = []
         self._saved_victims = []
+        self._found_all = False
 
     def initialize(self):
         # Initialization of the state tracker and navigation algorithm
@@ -185,8 +186,32 @@ class CustomAgent(ArtificialBrain):
                 if remaining_zones:
                     self._remainingZones = remaining_zones
                     self._remaining = remaining
-                # Remain idle if there are no victims left to rescue
-                if not remaining_zones:
+                # Remain idle if there are no areas left to search
+                if not remaining_zones and len(self._remaining) == 0:
+                    return None, {}
+
+                if len(self._dropped_victims) != 0:
+                    self._found_all = True
+                    (vic, (dropped_x, dropped_y)) = self._dropped_victims.pop()
+                    self._goal_vic = vic
+                    self._goal_loc = remaining[vic]
+                    # Plan the path to a found victim using its location
+                    self._navigator.reset_full()
+                    self._navigator.add_waypoints([(dropped_x, dropped_y)])
+                    # Follow the path to the found victim
+                    self._phase = Phase.FOLLOW_PATH_TO_VICTIM
+                    if 'critically' in vic:
+                        self._send_message('Moving to (' + str(dropped_x) + ', ' + str(dropped_y) + ') to pick up ' +
+                                           self._goal_vic + '. Please come there as well to help me carry ' +
+                                           self._goal_vic + ' to the drop zone.',
+                                           'RescueBot')
+
+                        self._rescue = 'together'
+                    else:
+                        self._send_message('Moving to (' + str(dropped_x) + ', ' + str(dropped_y) + ') to pick up and carry ' +
+                                           self._goal_vic + ' to the drop zone.',
+                                           'RescueBot')
+                        self._rescue = 'alone'
                     return None, {}
 
                 # Check which victims can be rescued next because human or agent already found them
@@ -707,7 +732,7 @@ class CustomAgent(ArtificialBrain):
 
             if Phase.FOLLOW_PATH_TO_VICTIM == self._phase:
                 # Start searching for other victims if the human already rescued the target victim
-                if self._goal_vic and self._goal_vic in self._collected_victims:
+                if self._goal_vic and self._goal_vic in self._collected_victims and not self._found_all:
                     self._phase = Phase.FIND_NEXT_GOAL
 
                 # Move towards the location of the found victim
@@ -721,6 +746,18 @@ class CustomAgent(ArtificialBrain):
                     self._phase = Phase.TAKE_VICTIM
 
             if Phase.TAKE_VICTIM == self._phase:
+                if self._found_all:
+                    if 'mild' in self._goal_vic:
+                        self._phase = Phase.PLAN_PATH_TO_DROPPOINT
+                        if self._goal_vic not in self._collected_victims:
+                            self._collected_victims.append(self._goal_vic)
+                        self._carrying = True
+                        return CarryObject.__name__, {'object_id': self._found_victim_logs[self._goal_vic]['obj_id'],
+                                                      'human_name': self._human_name}
+                    else:
+                        self._moving = False
+                        return None, {}
+
                 # Store all area tiles in a list
                 room_tiles = [info['location'] for info in state.values()
                              if 'class_inheritance' in info
@@ -975,6 +1012,14 @@ class CustomAgent(ArtificialBrain):
                 'rescue': {'competence': default, 'willingness': default}
             }
 
+        # print("dropped")
+        # print(self._dropped_victims)
+        # print("remaining")
+        # print(self._remaining)
+        # print("collected")
+        # print(self._collected_victims)
+        # print("---------------------------")
+
         if self._just_carried_together and not self._carrying_together:
             self._just_carried_together = False
 
@@ -992,23 +1037,17 @@ class CustomAgent(ArtificialBrain):
             # If they dropped the victim in the correct rescue spot, add trust and add the victim
             # to the list of saved victims.
             if expected_x == self._last_carrying_x and expected_y == self._last_carrying_y:
-                print("Increased trust")
-
                 self._saved_victims.append(carried_victim)
+
                 trustBeliefs[self._human_name]['rescue']['willingness'] += 0.10
                 trustBeliefs[self._human_name]['rescue']['willingness'] = np.clip(
                     trustBeliefs[self._human_name]['rescue']['willingness'], -1, 1)
-            # Otherwise, subtract trust, add the victim to the list of remaining victims and
+            # Otherwise, subtract trust, remove the victim from the list of collected victims and
             # remember its location
             else:
-                print("Subtracted trust")
-
-                self._remaining[carried_victim] = (expected_x, expected_y)
+                self._collected_victims.remove(carried_victim)
                 self._dropped_victims.append((carried_victim, (self._last_carrying_x, self._last_carrying_y)))
-                print(self._remaining)
-                print(self._dropped_victims)
-                print("----------------------------------------")
-                # TODO: add person to to_search (maybe?) and go at the end to pick it up
+
                 trustBeliefs[self._human_name]['rescue']['willingness'] -= 0.10
                 trustBeliefs[self._human_name]['rescue']['willingness'] = np.clip(
                     trustBeliefs[self._human_name]['rescue']['willingness'], -1, 1)
