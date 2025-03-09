@@ -96,7 +96,7 @@ class BaselineAgent(ArtificialBrain):
         # 1 ALWAYS-TRUST
         # 0 RANDOM-TRUST
         # None - adaptive mechanism
-        self._baseline = None
+        self._baseline = 0
 
         # Custom class attributes
         self._competency_additions = []
@@ -125,7 +125,7 @@ class BaselineAgent(ArtificialBrain):
                                     algorithm=Navigator.A_STAR_ALGORITHM)
 
     def filter_observations(self, state):
-        # Filtering of the world state before deciding on an action 
+        # Filtering of the world state before deciding on an action
         return state
 
     def get_searched_from_reported(self):
@@ -172,7 +172,7 @@ class BaselineAgent(ArtificialBrain):
         if self._agent_loc in [3, 4, 7, 10, 13, 14]:
             self._distance_drop = 'close'
 
-        # Check whether victims are currently being carried together by human and agent 
+        # Check whether victims are currently being carried together by human and agent
         for info in state.values():
             if 'is_human_agent' in info and self._human_name in info['name'] and len(
                     info['is_carrying']) > 0 and 'critical' in info['is_carrying'][0]['obj_id'] or \
@@ -421,7 +421,7 @@ class BaselineAgent(ArtificialBrain):
                     action = self._navigator.get_move_action(self._state_tracker)
                     # Check for obstacles blocking the path to the area and handle them if needed
                     if action is not None:
-                        # Remove obstacles blocking the path to the area 
+                        # Remove obstacles blocking the path to the area
                         for info in state.values():
                             if 'class_inheritance' in info and 'ObstacleObject' in info[
                                 'class_inheritance'] and 'stone' in info['obj_id'] and info['location'] not in [(9, 4),
@@ -568,7 +568,7 @@ class BaselineAgent(ArtificialBrain):
                                 \n clock - removal time together: 3 seconds \n afstand - distance between us: ' + self._distance_human + '\n clock - removal time alone: 20 seconds',
                                               'RescueBot')
                             self._waiting = True
-                        # Determine the next area to explore if the human tells the agent not to remove the obstacle          
+                        # Determine the next area to explore if the human tells the agent not to remove the obstacle
                         if self.received_messages_content and self.received_messages_content[
                             -1] == 'Continue' and not self._remove:
                             self._answered = True
@@ -1140,7 +1140,7 @@ class BaselineAgent(ArtificialBrain):
         trustfile_contents = []
 
         # When a baseline is specified, fix all the beliefs
-        if self._baseline:
+        if self._baseline is not None:
             trustBeliefs[self._human_name] = {
                 attribute: float(self._baseline)
                 for i, attribute in enumerate(self._possible_attributes)
@@ -1174,10 +1174,6 @@ class BaselineAgent(ArtificialBrain):
         '''
         Baseline implementation of a trust belief. Creates a dictionary with trust belief scores for each team member, for example based on the received messages.
         '''
-
-        # Don't change the values if baseline is specified
-        if self._baseline is not None:
-            return
 
         # Update the trust value based on for example the received messages
 
