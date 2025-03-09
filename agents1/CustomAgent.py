@@ -105,6 +105,15 @@ class CustomAgent(ArtificialBrain):
         self._navigator = Navigator(agent_id=self.agent_id, action_set=self.action_set,
                                     algorithm=Navigator.A_STAR_ALGORITHM)
 
+        # Initialize trust beliefs with default values first
+        self.trust_beliefs = {}  # This will set up the default structure
+        
+        # Then load any existing beliefs
+        trustBeliefs = self._loadBelief(self._team_members, self._folder)
+        if trustBeliefs:  # Only update if we got valid beliefs
+            self.trust_beliefs = trustBeliefs
+        self._trustBelief(self._team_members, self.trust_beliefs, self._folder, self._received_messages)
+
     def filter_observations(self, state):
         # Filtering of the world state before deciding on an action 
         return state
@@ -124,9 +133,7 @@ class CustomAgent(ArtificialBrain):
         # Process messages from team members
         self._process_messages(state, self._team_members, self._condition)
         # Initialize and update trust beliefs for team members
-        trustBeliefs = self._loadBelief(self._team_members, self._folder)
-        self._trustBeliefs = trustBeliefs
-        self._trustBelief(self._team_members, self._trustBeliefs, self._folder, self._received_messages)
+        self._trustBelief(self._team_members, self.trust_beliefs, self._folder, self._received_messages)
         # print(self._overallTrust(trustBeliefs[self._human_name]['search']['competence'], trustBeliefs[self._human_name]['search']['willingness'], 
         #                          trustBeliefs[self._human_name]['rescue']['competence'], trustBeliefs[self._human_name]['rescue']['willingness']))
         
@@ -536,8 +543,7 @@ class CustomAgent(ArtificialBrain):
                                 max_wait = self._max_remove_wait_ticks_close if self._distance_human == 'close' else self._max_remove_wait_ticks_far
                                 if self._remove_start_tick and (current_tick - self._remove_start_tick) > max_wait:
                                     # Apply trust penalty and reset state
-                                    self._trustBeliefs[self._human_name]['rescue']['competence'] += WEIGHTS['waiting_too_long']
-                                    self._normalize_trust_beliefs(self._trustBeliefs)
+                                    self.trust_beliefs[self._human_name]['rescue']['competence'] += WEIGHTS['waiting_too_long']
                                     self._send_message('You took too long to help remove the stones. I will continue with other tasks.', 'RescueBot')
                                     # Reset all state variables
                                     self._remove_start_tick = None
@@ -647,7 +653,7 @@ class CustomAgent(ArtificialBrain):
                                                       'RescueBot')
                                     # if the human said the truth about the location of a victim, really good
                                     # self._trustBeliefs[self._human_name]['search']['competence'] += WEIGHTS['found_victim_truth']
-                                    self._normalize_trust_beliefs(self._trustBeliefs)
+                                   # self._normalize_trust_beliefs(self.trust_beliefs)
                                     # Add the area to the list with searched areas
                                     if self._door['room_name'] not in self._searched_rooms:
                                         self._searched_rooms.append(self._door['room_name'])
@@ -879,10 +885,10 @@ class CustomAgent(ArtificialBrain):
                 victims = [item['victim'] for item in self._possible_searched_rooms]
                 locations = [item['room'] for item in self._possible_searched_rooms]
                 if (len(self._possible_searched_rooms) != counter):
-                    self._trustBeliefs[self._human_name]['rescue']['competence'] = WEIGHTS['found_victim_false']
+                    self.trust_beliefs[self._human_name]['rescue']['competence'] = WEIGHTS['found_victim_false']
 
                 else:
-                    self._trustBeliefs[self._human_name]['rescue']['competence'] += \
+                    self.trust_beliefs[self._human_name]['rescue']['competence'] += \
                         WEIGHTS['found_victim_true'] * len(victims)
 
                 victim_to_room = {item['victim']: item['room'] for item in self._possible_searched_rooms}
@@ -971,12 +977,12 @@ class CustomAgent(ArtificialBrain):
                      
                     if loc in self._searched_rooms:
                         if collectVic not in self._found_victim_logs or self._found_victim_logs[collectVic]['room'] != loc:
-                            print(self._trustBeliefs)
-                            self._trustBeliefs[self._human_name]['rescue']['competence'] = WEIGHTS['found_victim_false']
+                            print(self.trust_beliefs)
+                            self.trust_beliefs[self._human_name]['rescue']['competence'] = WEIGHTS['found_victim_false']
 
                             self._send_message("Liar, I have already checked there, or you told me that you will so you should have reported any", "RescueBot")
                     if loc not in self._searched_rooms:
-                        if self._trustBeliefs[self._human_name]['rescue']['competence'] >= TRUST_TRESHOLDS['collecting_trust']:
+                        if self.trust_beliefs[self._human_name]['rescue']['competence'] >= TRUST_TRESHOLDS['collecting_trust']:
                             self._searched_rooms.append(loc)
                         else:
                             self._possible_searched_rooms.append({'victim': collectVic, 'room': loc})
@@ -1104,14 +1110,7 @@ class CustomAgent(ArtificialBrain):
         # Normalize to -1, 1 range
         trustBeliefs = self._normalize_trust_beliefs(trustBeliefs)
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
-        with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
-            csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(['name', 'competence search', 'willingness search', 'competence rescue', 'willingness rescue'])
-            csv_writer.writerow([self._human_name, trustBeliefs[self._human_name]['search']['competence'],
-                                 trustBeliefs[self._human_name]['search']['willingness'],
-                                 trustBeliefs[self._human_name]['rescue']['competence'],
-                                 trustBeliefs[self._human_name]['rescue']['willingness']])
-
+        self.trust_beliefs = trustBeliefs
         return trustBeliefs
     
     # assuming that an incompetent and non-willing human agent is way more detrimental
@@ -1144,10 +1143,71 @@ class CustomAgent(ArtificialBrain):
         return trust_beliefs
 
     def _recalculatePossibleSearchedRooms(self):
-        if self._trustBeliefs[self._human_name]['rescue']['competence'] >= TRUST_TRESHOLDS['collecting_trust']:
+        if self.trust_beliefs[self._human_name]['rescue']['competence'] >= TRUST_TRESHOLDS['collecting_trust']:
             for loc in self._possibleSearchedRooms:
                 self._searched_rooms.append(loc)
         self._possibleSearchedRooms = []
+
+    def _save_trust_beliefs_to_csv(self):
+        """
+        Save current trust belief values to CSV file.
+        """
+        if not hasattr(self, '_trust_beliefs_dict') or not self._trust_beliefs_dict:
+            return
+            
+        # Ensure the trust beliefs have the correct structure
+        if self._human_name not in self._trust_beliefs_dict:
+            default = TRUST_TRESHOLDS['default']
+            self._trust_beliefs_dict[self._human_name] = {
+                'search': {'competence': default, 'willingness': default},
+                'rescue': {'competence': default, 'willingness': default}
+            }
+            
+        with open(self._folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
+            csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            csv_writer.writerow(['name', 'competence search', 'willingness search', 'competence rescue', 'willingness rescue'])
+            csv_writer.writerow([
+                self._human_name,
+                self._trust_beliefs_dict[self._human_name]['search']['competence'],
+                self._trust_beliefs_dict[self._human_name]['search']['willingness'],
+                self._trust_beliefs_dict[self._human_name]['rescue']['competence'],
+                self._trust_beliefs_dict[self._human_name]['rescue']['willingness']
+            ])
+
+    @property
+    def trust_beliefs(self):
+        """
+        Property getter for trust beliefs.
+        """
+        if not hasattr(self, '_trust_beliefs_dict'):
+            self._trust_beliefs_dict = {}
+            # Initialize with default values
+            default = TRUST_TRESHOLDS['default']
+            self._trust_beliefs_dict[self._human_name] = {
+                'search': {'competence': default, 'willingness': default},
+                'rescue': {'competence': default, 'willingness': default}
+            }
+        return self._trust_beliefs_dict
+
+    @trust_beliefs.setter
+    def trust_beliefs(self, value):
+        """
+        Property setter for trust beliefs. Automatically saves to CSV when updated.
+        """
+        if not value:
+            value = {}
+        # Ensure the trust beliefs have the correct structure
+        if self._human_name not in value:
+            default = TRUST_TRESHOLDS['default']
+            value[self._human_name] = {
+                'search': {'competence': default, 'willingness': default},
+                'rescue': {'competence': default, 'willingness': default}
+            }
+        
+        # Normalize the new values before setting them
+        normalized_value = self._normalize_trust_beliefs(value)
+        self._trust_beliefs_dict = normalized_value
+        self._save_trust_beliefs_to_csv()
 
     def _getClosestRoom(self, state, objs, currentDoor):
         '''
@@ -1212,5 +1272,3 @@ class CustomAgent(ArtificialBrain):
                 print(f"{prefix}])")
             except (TypeError, AttributeError):
                 print(f"{prefix}{obj}")
-        else:
-            print(f"{prefix}{obj}")
