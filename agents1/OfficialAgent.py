@@ -1183,13 +1183,13 @@ class BaselineAgent(ArtificialBrain):
 
         for addition in self._competency_additions + self._willingness_additions:
             attribute, update_value = addition
-            trustBeliefs[self._human_name][attribute] += update_value
+            trustBeliefs[self._human_name][attribute] += np.clip(update_value, -1, 1)
 
         # Save current trust belief values so we can later use and retrieve them to add to a csv file with all the logged trust belief values
         with open(folder + '/beliefs/currentTrustBelief.csv', mode='w') as csv_file:
             csv_writer = csv.writer(csv_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_MINIMAL)
             csv_writer.writerow(['name'] + self._possible_attributes)
-            csv_writer.writerow([self._human_name] + [trustBeliefs[self._human_name][attribute] for attribute in self._possible_attributes])
+            csv_writer.writerow([self._human_name] + [np.clip(trustBeliefs[self._human_name][attribute], -1, 1) for attribute in self._possible_attributes])
 
         return trustBeliefs
 
