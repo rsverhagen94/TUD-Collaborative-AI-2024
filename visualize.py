@@ -143,45 +143,71 @@ def visualize_comparison(log_dir1, log_dir2, label1="Default Trust", label2="Cus
     
     print("Visualizations have been created and saved as PNG files in the current directory.")
 
-def plot_idle_actions_and_events(data):
-    """
-    Create a plot showing percentage of idle actions over time with event markers
-    for obstacle removals and victim rescues
-    """
-    # Calculate idle percentage in windows
-    window_size = 20  # over 20 tick windows
-    idle_percentages = []
-    tick_windows = []
+def plot_idle_actions_and_events(custom_log_dir: str, baseline_logs: Dict[str, str]):
+    """Create a plot showing percentage of idle actions over time with event markers
+    for victim rescues, comparing custom trust mechanism against baselines.
     
-    for i in range(0, len(data['ticks']), window_size):
-        window_end = min(i + window_size, len(data['ticks']))
-        window_actions = data['rescuebot_actions'][i:window_end] + data['human_actions'][i:window_end]
-        idle_count = sum(1 for action in window_actions if not action)
-        idle_percentage = (idle_count / (2 * (window_end - i))) * 100  # Times 2 because we count both agents
-        idle_percentages.append(idle_percentage)
-        tick_windows.append(data['ticks'][i])
-    
-    # idle time
+    Args:
+        custom_log_dir: Directory containing logs for custom trust mechanism
+        baseline_logs: Dictionary mapping baseline names to their log directories
+    """
     plt.figure(figsize=(12, 6))
-    plt.plot(tick_windows, idle_percentages, label='Idle %', color='blue')
     
-    for i, (rescuebot_action, human_action) in enumerate(zip(data['rescuebot_actions'], data['human_actions'])):
-        tick = data['ticks'][i]
-        # if 'RemoveObject' in str(rescuebot_action) or 'RemoveObject' in str(human_action):
-        #     plt.axvline(x=tick, color='red', alpha=0.3, linestyle='--')
-        #     plt.scatter(tick, 0, color='red', marker='^', s=100, label='Obstacle Removed' if i == 0 else '')
+    # Process custom trust data first
+    data_dict = {
+        'Custom Trust': process_log_data(custom_log_dir)
+    }
+    # Add baseline data
+    for name, log_dir in baseline_logs.items():
+        data_dict[name] = process_log_data(log_dir)
+    
+    # Define colors for each run
+    colors = {
+        'Custom Trust': 'blue',
+        'Never Trust': 'red',
+        'Always Trust': 'green',
+        'Dynamic Trust': 'purple'
+    }
+    
+    # Process all datasets
+    for label, data in data_dict.items():
+        if not data:
+            print(f"Warning: Could not process data for {label}")
+            continue
+            
+        # Calculate idle percentage in windows
+        window_size = 20  # over 20 tick windows
+        idle_percentages = []
+        tick_windows = []
         
-        # rescue with green star
-        if i > 0 and (data['scores'][i] - data['scores'][i-1]) > 0:
-            plt.axvline(x=tick, color='green', alpha=0.3, linestyle='--')
-            plt.scatter(tick, 0, color='green', marker='*', s=100, label='Victim Rescued' if i == 0 else '')
+        for i in range(0, len(data['ticks']), window_size):
+            window_end = min(i + window_size, len(data['ticks']))
+            window_actions = data['rescuebot_actions'][i:window_end] + data['human_actions'][i:window_end]
+            idle_count = sum(1 for action in window_actions if not action)
+            idle_percentage = (idle_count / (2 * (window_end - i))) * 100  # Times 2 because we count both agents
+            idle_percentages.append(idle_percentage)
+            tick_windows.append(data['ticks'][i])
+        
+        color = colors.get(label, 'gray')  # Use gray as fallback color
+        
+        # Plot idle time
+        plt.plot(tick_windows, idle_percentages, label=f'{label} Idle %', color=color)
+        
+        # Plot rescue events
+        for i in range(1, len(data['ticks'])):
+            tick = data['ticks'][i]
+            if i > 0 and (data['scores'][i] - data['scores'][i-1]) > 0:
+                plt.axvline(x=tick, color=color, alpha=0.3, linestyle='--')
+                plt.scatter(tick, 0, color=color, marker='*', s=100, 
+                          label=f'{label} Rescue' if i == 1 else '')
     
     plt.xlabel('Time (ticks)')
     plt.ylabel('Idle Actions (%)')
-    plt.title('Idle Actions Percentage Over Time with Event Markers')
-    plt.legend()
+    plt.title('Idle Actions Percentage Over Time with Rescue Events')
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.grid(True)
-    plt.savefig('idle_actions_and_events.png')
+    plt.tight_layout()
+    plt.savefig('idle_actions_comparison.png', bbox_inches='tight')
     plt.close()
 
 def plot_trust_comparison(custom_log_dir: str, baseline_logs: Dict[str, str], metrics: List[str] = None):
@@ -202,7 +228,6 @@ def plot_trust_comparison(custom_log_dir: str, baseline_logs: Dict[str, str], me
     for name, log_dir in baseline_logs.items():
         data_dict[name] = process_log_data(log_dir)
     
-    # Colors for each trust mechanism
     colors = {
         'Custom Trust': 'blue',
         'Never Trust': 'red',
@@ -243,39 +268,40 @@ def plot_trust_comparison(custom_log_dir: str, baseline_logs: Dict[str, str], me
         plt.close()
 
 if __name__ == "__main__":
-    # Define paths to baseline logs
     baseline_logs = {
-        'Never Trust': 'baselines/never_trust.csv',
-        'Always Trust': 'baselines/always_trust.csv',
-        'Random Trust': 'baselines/random_trust.csv'
+        'Never Trust': 'baselines/never/',
+        'Always Trust': 'baselines/always/',
+        'Random Trust': 'baselines/random/'
     }
     
-    # Get latest experiment for custom trust mechanism
+    #not using latest now
     latest_exp = get_latest_experiment()
     if latest_exp:
         print(f"Using latest experiment: {latest_exp}")
-        # Create comparison plots
-        plot_trust_comparison(latest_exp, baseline_logs)
+        plot_trust_comparison('baselines/custom/', baseline_logs)
         plt.close()
         
-        # Create mission completeness plot
-        plt.figure(figsize=(10, 6))
-        plt.plot(data['ticks'], data['completeness'], label='Completeness')
-        plt.xlabel('Time (ticks)')
-        plt.ylabel('Completeness (%)')
-        plt.title('Mission Completeness')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig('mission_completeness.png')
-        plt.close()
+        data = process_log_data(os.path.join(latest_exp, 'world_1'))
         
-        # Create idle actions and events plot
-        plot_idle_actions_and_events(data)
-        
-        print("Created visualizations for the latest experiment:")
-        print("1. score_progression.png - Shows how the score changes over time")
-        print("2. mission_completeness.png - Shows mission completion progress")
-        print("3. idle_actions_and_events.png - Shows idle actions % with event markers")
-        print("\nOnce you have data from multiple runs, you can use visualize_comparison() to compare them.")
+        if data is not None:
+            plt.figure(figsize=(10, 6))
+            plt.plot(data['ticks'], data['completeness'], label='Completeness')
+            plt.xlabel('Time (ticks)')
+            plt.ylabel('Completeness (%)')
+            plt.title('Mission Completeness')
+            plt.legend()
+            plt.grid(True)
+            plt.savefig('mission_completeness.png')
+            plt.close()
+            
+            plot_idle_actions_and_events('baselines/custom/', baseline_logs)
+            
+            print("Created visualizations for the latest experiment:")
+            print("1. score_progression.png - Shows how the score changes over time")
+            print("2. mission_completeness.png - Shows mission completion progress")
+            print("3. idle_actions_comparison.png - Shows idle actions % with event markers")
+            print("\nOnce you have data from multiple runs, you can use visualize_comparison() to compare them.")
+        else:
+            print("Could not process data from the latest experiment.")
     else:
         print("No experiment directories found!")

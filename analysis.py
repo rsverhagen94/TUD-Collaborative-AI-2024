@@ -20,7 +20,7 @@ def process_log_data(exp_dir):
     
     print(f"Processing experiment directory: {exp_dir}")
     
-    exp_type = os.path.basename(exp_dir).split('_')[1]  # normal or strong
+    # exp_type = os.path.basename(exp_dir).split('_')[1]  # normal or strong
     
     # Find the world_1 directory and its action log file
     world1_dir = os.path.join(exp_dir, 'world_1')
@@ -28,7 +28,7 @@ def process_log_data(exp_dir):
         print(f"world_1 directory not found in {exp_dir}")
         return None
         
-    action_files = glob.glob(os.path.join(world1_dir, 'action*.csv'))
+    action_files = glob.glob(os.path.join(world1_dir, '*.csv'))
     if not action_files:
         print(f"No action log files found in {world1_dir}")
         return None
@@ -181,7 +181,7 @@ def analyze_data(data):
     interaction_phases = analyze_interaction_phases(data)
     object_interactions = analyze_object_interaction(data)
     
-    
+
     print("\n=== Mission Overview ===")
     print(f"Total mission time (ticks): {total_ticks}")
     print(f"Final score: {final_score}")
@@ -219,7 +219,7 @@ def analyze_data(data):
 
 def main():
     # Process log data from the latest experiment
-    data = process_log_data()
+    data = process_log_data('baselines/custom/')
     
     if data:
         analyze_data(data)
