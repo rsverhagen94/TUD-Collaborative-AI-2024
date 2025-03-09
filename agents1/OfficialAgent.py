@@ -753,7 +753,7 @@ class BaselineAgent(ArtificialBrain):
                                 if self._went_into_already_searched_room:
                                     self._went_into_already_searched_room = False
                                     self._willingness_additions.append(("willingness_rescue", -1 * DID_NOT_RESCUE_FOUND_VICTIM))
-                                    self._send_message("-WILLINGNESS You did not rescue a victim you reported that's cringe")
+                                    self._send_message("-WILLINGNESS You did not rescue a victim you reported that's cringe", 'RescueBot')
 
                                 # Communicate which victim the agent found and ask the human whether to rescue the victim now or at a later stage
                                 if 'mild' in vic and self._answered == False and not self._waiting:
