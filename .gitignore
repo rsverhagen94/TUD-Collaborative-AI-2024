@@ -1,16 +1,15 @@
-# .gitignore found only for python
-
+# .gitignore for Python
 # Virtual environment
+myenv/
 venv/
 .env/
-*.venv/
+.venv/
 
 # Python bytecode and cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*/__pycache__/
 
 # Logs and debugging
 logs/
@@ -36,5 +35,4 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
-
 beliefs/*.csv
