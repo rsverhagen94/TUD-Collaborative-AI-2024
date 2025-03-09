@@ -18,12 +18,16 @@ from actions1.CustomActions import RemoveObjectTogether, CarryObjectTogether, Dr
 WEIGHTS = {
     'found_victim_false': -1.0,
     'found_victim_true': 0.3,
-    'waiting_too_long': -0.2
+    'waiting_too_long': -0.2,
+    'victim_not_reported': -0.5,
+    'victim_correctly_reported': 0.4,
+    'false_victim_report': -0.8
 }
 
 TRUST_TRESHOLDS = {
     'collecting_trust': 0.4,
-    'default': 0.2
+    'default': 0.2,
+    'victim_handling': 0.3
 }
 class Phase(enum.Enum):
     INTRO = 1,
@@ -59,9 +63,13 @@ class CustomAgent(ArtificialBrain):
         self._phase = Phase.INTRO
         self._room_vics = []
         self._searched_rooms = []
-        # where we don't actually believe the human searhed
+        # Enhanced victim and room tracking
         self._possible_searched_rooms = []
         self._possible_rescued_humans = []
+        self._penalized_rooms = set()  # Rooms where trust penalties were already applied
+        self._victim_reports = {}  # Track reported victims and their locations
+        self._victim_not_reported = False  # Flag for unreported victims
+        self._victim_verification_needed = set()  # Rooms that need verification
 
         self._found_victims = []
         self._collected_victims = []
@@ -103,6 +111,7 @@ class CustomAgent(ArtificialBrain):
 
     def decide_on_actions(self, state):
         # Identify team members
+        # self.print_recursively(state.values())
         agent_name = state[self.agent_id]['obj_id']
         for member in state['World']['team_members']:
             if member != agent_name and member not in self._team_members:
@@ -1175,3 +1184,33 @@ class CustomAgent(ArtificialBrain):
             else:
                 locs.append((x[i], max(y)))
         return locs
+
+
+    def print_recursively(obj, indent=0):
+        """
+        Recursively print the contents of an object with proper indentation.
+        
+        Args:
+            obj: The object to print
+            indent: Current indentation level
+        """
+        prefix = "  " * indent
+        
+        if isinstance(obj, dict):
+            print(f"{prefix}{{")
+            for key, value in obj.items():
+                print(f"{prefix}  {key}: ", end="")
+                print_recursively(value, indent + 1)
+            print(f"{prefix}}}")
+        elif isinstance(obj, (list, tuple)) or hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+            try:
+                # Check if it's a view object (like ValuesView)
+                collection_type = type(obj).__name__
+                print(f"{prefix}{collection_type}([")
+                for item in obj:
+                    print_recursively(item, indent + 1)
+                print(f"{prefix}])")
+            except (TypeError, AttributeError):
+                print(f"{prefix}{obj}")
+        else:
+            print(f"{prefix}{obj}")
