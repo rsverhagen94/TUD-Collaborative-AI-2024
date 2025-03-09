@@ -14,7 +14,7 @@ def plot_score_comparison(data1, data2, label1="Run 1", label2="Run 2"):
     plt.legend()
     plt.grid(True)
     plt.savefig('score_comparison.png')
-    plt.close()
+    plt.close('all')
 
 def plot_completeness_comparison(data1, data2, label1="Run 1", label2="Run 2"):
     plt.figure(figsize=(10, 6))
@@ -26,7 +26,7 @@ def plot_completeness_comparison(data1, data2, label1="Run 1", label2="Run 2"):
     plt.legend()
     plt.grid(True)
     plt.savefig('completeness_comparison.png')
-    plt.close()
+    plt.close('all')
 
 def plot_movement_patterns(data1, data2, label1="Run 1", label2="Run 2"):
     def get_movement_counts(data):
@@ -71,7 +71,7 @@ def plot_movement_patterns(data1, data2, label1="Run 1", label2="Run 2"):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig('movement_patterns_comparison.png')
-    plt.close()
+    plt.close('all')
 
 def plot_interaction_phases(data1, data2, label1="Run 1", label2="Run 2"):
     def count_interaction_types(data):
@@ -123,7 +123,7 @@ def plot_interaction_phases(data1, data2, label1="Run 1", label2="Run 2"):
     plt.xticks(rotation=45)
     plt.tight_layout()
     plt.savefig('interaction_phases_comparison.png')
-    plt.close()
+    plt.close('all')
 
 def visualize_comparison(log_dir1, log_dir2, label1="Default Trust", label2="Custom Trust"):
     """
@@ -208,7 +208,7 @@ def plot_idle_actions_and_events(custom_log_dir: str, baseline_logs: Dict[str, s
     plt.grid(True)
     plt.tight_layout()
     plt.savefig('idle_actions_comparison.png', bbox_inches='tight')
-    plt.close()
+    plt.close('all')
 
 def plot_trust_comparison(custom_log_dir: str, baseline_logs: Dict[str, str], metrics: List[str] = None):
     """Plot comparison between custom trust mechanism and baselines.
@@ -265,7 +265,7 @@ def plot_trust_comparison(custom_log_dir: str, baseline_logs: Dict[str, str], me
         plt.legend()
         plt.grid(True)
         plt.savefig(f'trust_comparison_{metric}.png')
-        plt.close()
+        plt.close('all')
 
 if __name__ == "__main__":
     baseline_logs = {
@@ -279,9 +279,9 @@ if __name__ == "__main__":
     if latest_exp:
         print(f"Using latest experiment: {latest_exp}")
         plot_trust_comparison('baselines/custom/', baseline_logs)
-        plt.close()
+        plt.close('all')
         
-        data = process_log_data(os.path.join(latest_exp, 'world_1'))
+        data = process_log_data( 'baselines/custom/')
         
         if data is not None:
             plt.figure(figsize=(10, 6))
@@ -292,7 +292,7 @@ if __name__ == "__main__":
             plt.legend()
             plt.grid(True)
             plt.savefig('mission_completeness.png')
-            plt.close()
+            plt.close('all')
             
             plot_idle_actions_and_events('baselines/custom/', baseline_logs)
             

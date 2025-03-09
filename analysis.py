@@ -218,7 +218,7 @@ def analyze_data(data):
             print(f"  Number of removal sequences: {len(object_interactions[agent]['remove_sequences'])}")
 
 def main():
-    # Process log data from the latest experiment
+    # Process log data from custom
     data = process_log_data('baselines/custom/')
     
     if data:
