@@ -111,7 +111,7 @@ class CustomAgent(ArtificialBrain):
 
     def decide_on_actions(self, state):
         # Identify team members
-        self.print_recursively(state.values())
+        # self.print_recursively(state.values())
         agent_name = state[self.agent_id]['obj_id']
         for member in state['World']['team_members']:
             if member != agent_name and member not in self._team_members:
