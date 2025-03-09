@@ -726,7 +726,8 @@ class BaselineAgent(ArtificialBrain):
                                                                 'room': self._door['room_name'],
                                                                 'obj_id': info['obj_id']}
                                 if vic == self._goal_vic:
-                                    victim_found_in_room = True
+                                    self._willingness_additions.append(("willingness_search", CORRECTLY_IDENTIFIED_VICTIM_REWARD))
+                                    self._send_message("+WILL You correctly identified a human nice", "RescueBot")
 
                                     # Communicate which victim was found
                                     self._send_message('Found ' + vic + ' in ' + self._door[
@@ -774,16 +775,16 @@ class BaselineAgent(ArtificialBrain):
                                     self._waiting = True
                                     # Execute move actions to explore the area
 
-                    if victim_found_in_room:
-                        self._willingness_additions.append(("willingness_search", CORRECTLY_IDENTIFIED_VICTIM_REWARD))
-                        self._send_message("+WILL You correctly identified a human nice", "RescueBot")
-                    elif self._goal_vic is not None:
-                        self._willingness_additions.append(("willingness_search", -1 * CORRECTLY_IDENTIFIED_VICTIM_REWARD))
-                        self._send_message('-WILL Did NOT find ' + self._goal_vic + 'in this room as you claimed LIAR!',
-                                           'RescueBot')
-                        self._phase = Phase.PICK_UNSEARCHED_ROOM
-                        self._goal_vic = None
-                        return None, {}
+                    # if victim_found_in_room:
+                    #     self._willingness_additions.append(("willingness_search", CORRECTLY_IDENTIFIED_VICTIM_REWARD))
+                    #     self._send_message("+WILL You correctly identified a human nice", "RescueBot")
+                    # elif self._goal_vic is not None:
+                    #     self._willingness_additions.append(("willingness_search", -1 * CORRECTLY_IDENTIFIED_VICTIM_REWARD))
+                    #     self._send_message('-WILL Did NOT find ' + self._goal_vic + 'in this room as you claimed LIAR!',
+                    #                        'RescueBot')
+                    #     self._phase = Phase.PICK_UNSEARCHED_ROOM
+                    #     self._goal_vic = None
+                    #     return None, {}
 
                     return action, {}
 
@@ -793,6 +794,9 @@ class BaselineAgent(ArtificialBrain):
                     self._send_message(self._goal_vic + ' not present in ' + str(self._door[
                                                                                     'room_name']) + ' because I searched the whole area without finding ' + self._goal_vic + '.',
                                       'RescueBot')
+                    self._willingness_additions.append(("willingness_search", -1 * CORRECTLY_IDENTIFIED_VICTIM_REWARD))
+                    self._send_message('-WILL Did NOT find ' + self._goal_vic + 'in this room as you claimed LIAR!',
+                                           'RescueBot')
                     # Remove the victim location from memory
                     self._found_victim_logs.pop(self._goal_vic, None)
                     self._found_victims.remove(self._goal_vic)
@@ -800,6 +804,8 @@ class BaselineAgent(ArtificialBrain):
                     # Reset received messages (bug fix)
                     self.received_messages = []
                     self.received_messages_content = []
+                    self._goal_vic = None
+                    self._phase = Phase.FIND_NEXT_GOAL
                 # Add the area to the list of searched areas
                 if self._door['room_name'] not in self._searched_rooms:
                     self._searched_rooms.append(self._door['room_name'])
