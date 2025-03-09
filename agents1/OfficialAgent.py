@@ -1176,7 +1176,7 @@ class BaselineAgent(ArtificialBrain):
         '''
 
         # Don't change the values if baseline is specified
-        if self._baseline:
+        if self._baseline is not None:
             return
 
         # Update the trust value based on for example the received messages
