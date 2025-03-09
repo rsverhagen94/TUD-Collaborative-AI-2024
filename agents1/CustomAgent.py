@@ -878,7 +878,7 @@ class CustomAgent(ArtificialBrain):
 
                 victim_to_room = {item['victim']: item['room'] for item in self._possible_searched_rooms}
                 for victim in victims:
-                    if victim in found_victims:
+                    if victim in self._found_victims:
                         self._found_victim_logs[victim] = {'room': victim_to_room[victim]}
 
                 print("we would be checking with the robot here")
